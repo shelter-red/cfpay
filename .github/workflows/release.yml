@@ -1,0 +1,168 @@
+name: 发布微信监控端单EXE
+
+# 推送 v* 标签即触发：在 Linux 上用 MinGW-w64 交叉编译 Windows 单 EXE，
+# 再用 Actions 内置 GITHUB_TOKEN 创建 Release 并上传版本化工件。
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: 标记为预发布版本
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 安装交叉编译工具链
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            g++-mingw-w64-x86-64 \
+            cmake \
+            ninja-build
+          x86_64-w64-mingw32-g++ --version | head -n1
+          cmake --version | head -n1
+
+      - name: 编译单 EXE
+        id: build
+        run: bash tools/build-single-exe.sh --clean --jobs 4
+
+      - name: 校验构建产物
+        run: |
+          set -euo pipefail
+          ls -l dist/single-exe
+          cat dist/single-exe/BUILD_INFO
+          cd dist/single-exe
+          sha256sum -c SHA256SUMS
+
+      - name: 解析标签并校验版本号一致
+        id: meta
+        run: |
+          set -euo pipefail
+          version="${{ steps.build.outputs.monitor_version }}"
+          weixin="${{ steps.build.outputs.weixin_version }}"
+          tag="${GITHUB_REF_NAME}"
+          if [[ "$tag" != v* ]]; then
+            echo "::warning::非标签触发（${tag}），改为按源码版本发布 v${version}"
+            tag="v${version}"
+          elif [[ "$tag" != "v${version}" ]]; then
+            echo "::error::标签 ${tag} 与源码监控端版本 v${version} 不一致，请先同步版本号再打标签"
+            exit 1
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "weixin=${weixin}" >> "$GITHUB_OUTPUT"
+          echo "release_name=${{ steps.build.outputs.release_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: 生成发布说明
+        run: |
+          set -euo pipefail
+          tag="${{ steps.meta.outputs.tag }}"
+          version="${{ steps.meta.outputs.version }}"
+          weixin="${{ steps.meta.outputs.weixin }}"
+          release_name="${{ steps.meta.outputs.release_name }}"
+          sha256="${{ steps.build.outputs.artifact_sha256 }}"
+          size="${{ steps.build.outputs.artifact_size }}"
+
+          # 变更列表：优先取上一个标签到本标签之间的提交，取不到时回退最近 20 条。
+          ref="$tag"
+          git rev-parse -q --verify "refs/tags/${ref}" >/dev/null 2>&1 || ref="$GITHUB_SHA"
+          prev_tag=$(git describe --tags --abbrev=0 "${ref}^" 2>/dev/null || true)
+          if [[ -n "$prev_tag" ]]; then
+            changelog=$(git log --no-merges --pretty=format:'- %s (%h)' "${prev_tag}..${ref}")
+          else
+            changelog=$(git log --no-merges -n 20 --pretty=format:'- %s (%h)' "$ref")
+          fi
+          [[ -n "$changelog" ]] || changelog="- 无提交记录"
+
+          {
+            echo "CFPay 微信监控端 ${tag}（Windows x64 单 EXE，观察 DLL 已内嵌）"
+            echo
+            echo "## 版本信息"
+            echo
+            echo "| 项目 | 值 |"
+            echo "| --- | --- |"
+            echo "| 监控端版本 | \`${version}\` |"
+            echo "| 支持微信版本 | \`${weixin}\`（仅此版本通过静态校验，其它版本拒绝注入） |"
+            echo "| 运行平台 | Windows x64，静态链接，无需额外运行时 |"
+            echo "| 提交 | \`${GITHUB_SHA}\` |"
+            echo "| 文件大小 | ${size} 字节 |"
+            echo "| SHA-256 | \`${sha256}\` |"
+            echo
+            echo "## 工件"
+            echo
+            echo "- \`${release_name}.exe\`：发布用单 EXE，与 \`cfpay-wechat-monitor.exe\` 内容一致。"
+            echo "- \`SHA256SUMS\`：校验和清单，下载后执行 \`sha256sum -c SHA256SUMS\` 验证。"
+            echo "- \`BUILD_INFO\`：构建环境、内嵌观察 DLL 哈希与提交信息。"
+            echo
+            echo "## 部署"
+            echo
+            echo "1. 把 EXE 复制到 Windows 目录，例如 \`%LOCALAPPDATA%\CFPay\WeChatMonitor\`。"
+            echo "2. 同目录准备 \`config.json\`（参考仓库 \`config/wechat-monitor.example.json\`），或启动后用内置配置界面填写 Worker 地址与监控端密钥。"
+            echo "3. 首次启动会把内嵌观察 DLL 释放到同目录再注入微信；升级观察器前必须完整退出微信。"
+            echo
+            echo "## 变更"
+            echo
+            echo "$changelog"
+          } > release-notes.md
+
+          echo "--- 发布说明预览 ---"
+          cat release-notes.md
+
+      - name: 创建 Release 并上传工件
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.meta.outputs.tag }}"
+          weixin="${{ steps.meta.outputs.weixin }}"
+          release_name="${{ steps.meta.outputs.release_name }}"
+          title="CFPay 微信监控端 ${tag}（微信 ${weixin}）"
+          assets=(
+            "dist/single-exe/${release_name}.exe"
+            "dist/single-exe/SHA256SUMS"
+            "dist/single-exe/BUILD_INFO"
+          )
+          for asset in "${assets[@]}"; do
+            [[ -f "$asset" ]] || { echo "::error::缺少工件 ${asset}"; exit 1; }
+          done
+
+          extra_flags=()
+          if [[ "${{ inputs.prerelease }}" == "true" ]]; then
+            extra_flags+=("--prerelease")
+          fi
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release ${tag} 已存在，覆盖上传工件"
+            gh release upload "$tag" "${assets[@]}" --clobber
+          else
+            gh release create "$tag" \
+              --target "$GITHUB_SHA" \
+              --title "$title" \
+              --notes-file release-notes.md \
+              ${extra_flags[@]+"${extra_flags[@]}"} \
+              "${assets[@]}"
+          fi
+          echo "Release 地址: https://github.com/${GH_REPO}/releases/tag/${tag}"

@@ -1,0 +1,62 @@
+{
+  "name": "cfpay",
+  "version": "0.9.2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "alipay:test": "node tools/alipay-ledger-query.mjs",
+    "alipay:worker-secrets": "node tools/generate-alipay-worker-secrets.mjs",
+    "wechat:monitor:build": "node tools/build-windows-wechat-monitor.mjs",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "admin:install": "npm --prefix admin-ui install",
+    "admin:build": "npm --prefix admin-ui run build",
+    "admin:dev": "npm --prefix admin-ui run dev",
+    "admin:typecheck": "npm --prefix admin-ui run typecheck",
+    "admin:verify": "node tools/verify-admin-ui.mjs",
+    "deploy": "npm run admin:build && node tools/deploy.mjs",
+    "generate-types": "wrangler types",
+    "wechat:monitor:single": "bash tools/build-single-exe.sh"
+  },
+  "dependencies": {
+    "@fidm/x509": "^1.2.1",
+    "hono": "^4.13.9",
+    "js-md5": "^0.9.2",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260927.1",
+    "@types/js-md5": "^0.8.0",
+    "@types/node": "^24.19.0",
+    "@types/qrcode": "^1.5.6",
+    "alipay-sdk": "^4.14.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2",
+    "wrangler": "^4.141.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "ADMIN_PATH": {
+        "description": "后台路径，不含斜杠，例如 admin-3q9527ko8。"
+      },
+      "ADMIN_USERNAME": {
+        "description": "后台管理员账号，建议不要使用 admin。"
+      },
+      "ADMIN_PASSWORD": {
+        "description": "后台管理员强密码，应配置为 Secret。"
+      },
+      "SESSION_SECRET": {
+        "description": "后台会话签名密钥，应配置为 Secret，可使用 openssl rand -hex 32 生成。"
+      },
+      "TURNSTILE_SITE_KEY": {
+        "description": "可选。Cloudflare Turnstile 站点 Key（公开值），与 Secret Key 同时配置才启用后台登录人机验证。"
+      },
+      "TURNSTILE_SECRET_KEY": {
+        "description": "可选。Cloudflare Turnstile Secret Key，必须配置为 Secret，后台不会回显。"
+      }
+    }
+  }
+}

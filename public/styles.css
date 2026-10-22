@@ -1,0 +1,13 @@
+/* 公开首页样式。管理后台使用独立的 Vue 3 + Tailwind v4 SPA。 */
+:root{font-family:Inter,"PingFang SC","Microsoft YaHei",sans-serif;color:#182033;background:#f4f6f8;font-synthesis:none}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh}
+.landing{display:grid;place-items:center;padding:24px}
+.landing-card{width:min(560px,100%);padding:40px;background:#fff;border:1px solid #e8ebf0;border-radius:20px;box-shadow:0 14px 45px rgba(28,39,60,.07);text-align:center}
+.landing-card h1{margin:0;font-size:46px;line-height:1.15;overflow-wrap:anywhere}
+.landing-subtitle{margin:12px 0 0;color:#667085;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere}
+.health{display:inline-flex;align-items:center;gap:8px;margin-top:14px;font-weight:700}
+.health span{width:10px;height:10px;border-radius:50%;background:#1ba64b;box-shadow:0 0 0 6px rgba(27,166,75,.12)}
+.footer{margin-top:28px;padding-top:20px;border-top:1px solid #e8ebf0;color:#758096;font-size:13px;line-height:1.8;word-break:break-word}
+.footer div+div{margin-top:4px}.footer a{color:#526173;text-decoration:underline;text-underline-offset:3px}.footer a:hover{color:#182033}
+@media(max-width:720px){.landing-card{padding:30px 22px}.landing-card h1{font-size:38px}}

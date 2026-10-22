@@ -1,0 +1,72 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "cfpay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-27",
+  // 仓库不保存生产域名、Cloudflare Account ID 与真实 D1 ID。
+  // 本机部署把真实值写进被 Git 忽略的 wrangler.local.jsonc（见 README 第 5 节）；
+  // CI 通过仓库变量 CLOUDFLARE_ACCOUNT_ID / CFPAY_D1_DATABASE_ID / CFPAY_DOMAIN 注入。
+  "workers_dev": true,
+  "preview_urls": false,
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
+  "vars": {
+    "ADMIN_PATH": "admin-change-me",
+    "ADMIN_USERNAME": "admin",
+    "CLOUDFLARE_ACCOUNT_ID": "",
+    "CLOUDFLARE_D1_DATABASE_ID": "",
+    "CLOUDFLARE_D1_PLAN": "free"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cfpay_db",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ALIPAY_POLLER",
+        "class_name": "AlipayLedgerPoller"
+      },
+      {
+        "name": "MONITOR_STATE",
+        "class_name": "MonitorState"
+      },
+      {
+        "name": "RUNTIME_DATA",
+        "class_name": "RuntimeDataState"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["AlipayLedgerPoller"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["MonitorState"]
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": ["RuntimeDataState"]
+    }
+  ],
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}

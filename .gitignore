@@ -1,0 +1,13 @@
+node_modules/
+.wrangler/
+.dev.vars
+dist/
+worker-configuration.d.ts
+*.log
+config/*.local.json
+config/alipay/
+admin-ui/node_modules/
+admin-ui/public/downloads/
+public/admin-app/
+wrangler.local.jsonc
+wrangler.deploy.jsonc

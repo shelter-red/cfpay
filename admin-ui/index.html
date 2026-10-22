@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="robots" content="noindex,nofollow">
+    <link rel="icon" href="/favicon.svg">
+    <title>CFPay 管理后台</title>
+    <script>
+      // 后台入口路径是动态的（管理员可随时改），由 Worker 在下发 HTML 时替换成真实值，
+      // vue-router 用它作为 history base，避免把入口明文写进前端产物。
+      window.__CFPAY_ADMIN_BASE__ = "/";
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

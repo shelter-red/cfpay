@@ -1,0 +1,37 @@
+{
+  "name": "cfpay-admin-ui",
+  "version": "0.9.2",
+  "private": true,
+  "type": "module",
+  "description": "CFPay 管理后台前端：Vue 3 + Tailwind v4 + reka-ui（shadcn-vue），复用 cffk 的组件库与后台布局",
+  "scripts": {
+    "dev": "vite",
+    "build": "node ../tools/build-admin-ui.mjs",
+    "build:vite": "vite build",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@lucide/vue": "^1.31.0",
+    "@tanstack/vue-table": "^8.21.3",
+    "@unovis/vue": "^1.7.0",
+    "@vueuse/core": "^14.4.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "jsqr": "^1.4.0",
+    "reka-ui": "^2.10.3",
+    "tailwind-merge": "^3.6.0",
+    "vue": "^3.5.40",
+    "vue-router": "^4.5.1",
+    "vue-sonner": "^2.0.9"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "@vue/tsconfig": "^0.7.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.2",
+    "vite": "^8.1.5",
+    "vue-tsc": "^3.1.0"
+  }
+}

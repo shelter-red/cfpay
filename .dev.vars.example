@@ -1,0 +1,12 @@
+ADMIN_PASSWORD=replace-with-a-strong-password
+SESSION_SECRET=replace-with-at-least-32-random-bytes
+# 可选：Cloudflare Turnstile 后台登录人机验证。两个都配置才会启用，只配一个视为未启用。
+# 站点 Key 是公开值，Secret Key 必须用 wrangler secret put TURNSTILE_SECRET_KEY 配置。
+TURNSTILE_SITE_KEY=
+TURNSTILE_SECRET_KEY=
+
+# 可选：管理端 D1 用量面板。Token 需要 Account / Account Analytics / Read 权限。
+CLOUDFLARE_ACCOUNT_ID=
+CLOUDFLARE_D1_DATABASE_ID=
+CLOUDFLARE_D1_PLAN=free
+CLOUDFLARE_ANALYTICS_TOKEN=

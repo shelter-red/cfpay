@@ -1,0 +1,97 @@
+name: 手动编译微信监控端
+
+# 仅手动触发：在 Linux 上用 MinGW-w64 交叉编译 Windows x64 单 EXE，
+# 跑完内嵌校验后把 EXE、SHA256SUMS、BUILD_INFO 作为 Actions 工件上传。
+# 不创建 Release、不改版本号；需要正式发布请用 release.yml 或推送 v* 标签。
+on:
+  workflow_dispatch:
+    inputs:
+      clean:
+        description: 全量重新编译（清理构建目录）
+        required: false
+        default: true
+        type: boolean
+      jobs:
+        description: 并行编译任务数
+        required: false
+        default: "4"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-monitor-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装交叉编译工具链
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            g++-mingw-w64-x86-64 \
+            cmake \
+            ninja-build
+          x86_64-w64-mingw32-g++ --version | head -n1
+          cmake --version | head -n1
+
+      - name: 交叉编译单 EXE
+        id: build
+        env:
+          CLEAN: ${{ inputs.clean }}
+          JOBS: ${{ inputs.jobs }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$JOBS" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::jobs 必须是正整数，收到：$JOBS"
+            exit 1
+          fi
+          args=(--jobs "$JOBS")
+          if [[ "$CLEAN" == "true" ]]; then
+            args+=(--clean)
+          fi
+          bash tools/build-single-exe.sh "${args[@]}"
+
+      - name: 校验构建产物
+        run: |
+          set -euo pipefail
+          ls -l dist/single-exe
+          cat dist/single-exe/BUILD_INFO
+          cd dist/single-exe
+          sha256sum -c SHA256SUMS
+
+      - name: 上传构建工件
+        uses: actions/upload-artifact@v4
+        with:
+          name: cfpay-wechat-monitor-${{ steps.build.outputs.monitor_version }}-${{ github.run_number }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            dist/single-exe/${{ steps.build.outputs.release_name }}.exe
+            dist/single-exe/SHA256SUMS
+            dist/single-exe/BUILD_INFO
+
+      - name: 输出摘要
+        if: success()
+        run: |
+          {
+            echo "### 微信监控端编译完成"
+            echo ""
+            echo "| 项目 | 值 |"
+            echo "| --- | --- |"
+            echo "| 监控端版本 | \`${{ steps.build.outputs.monitor_version }}\` |"
+            echo "| 支持微信版本 | \`${{ steps.build.outputs.weixin_version }}\` |"
+            echo "| 工件 | \`${{ steps.build.outputs.release_name }}.exe\` |"
+            echo "| 大小 | ${{ steps.build.outputs.artifact_size }} 字节 |"
+            echo "| SHA-256 | \`${{ steps.build.outputs.artifact_sha256 }}\` |"
+            echo "| 平台 | Windows x64（Linux 交叉编译） |"
+            echo ""
+            echo "在本次运行页面的 Artifacts 区域下载。"
+          } >> "$GITHUB_STEP_SUMMARY"
