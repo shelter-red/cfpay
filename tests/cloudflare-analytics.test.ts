@@ -91,4 +91,22 @@ describe("Cloudflare D1 analytics", () => {
     expect((await getD1Usage(env, now, true)).today.rowsRead.used).toBe(200);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it("does not invent Free limits when the plan is unknown", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({
+      data: { viewer: { accounts: [{ d1AnalyticsAdaptiveGroups: [{ count: 2, dimensions: { date: "2026-10-09" }, sum: { rowsRead: 123, rowsWritten: 45 } }], d1StorageAdaptiveGroups: [] }] } },
+      errors: null,
+    })));
+
+    const usage = await getD1Usage({
+      CLOUDFLARE_ACCOUNT_ID: "account-unknown",
+      CLOUDFLARE_ANALYTICS_TOKEN: "secret-token",
+    } as Env, new Date("2026-10-09T02:00:00Z"), true);
+
+    expect(usage.plan).toBe("unknown");
+    expect(usage.limitSource).toBe("unavailable");
+    expect(usage.today.rowsRead.limit).toBeNull();
+    expect(usage.today.rowsWritten.limit).toBeNull();
+    expect(usage.storage.limit).toBeNull();
+  });
 });

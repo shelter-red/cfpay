@@ -47,7 +47,8 @@ interface D1UsageDay {
 
 export interface D1UsageData {
   configured: true;
-  plan: "free" | "paid";
+  plan: "free" | "paid" | "unknown";
+  limitSource: "configured" | "unavailable";
   timezone: "UTC";
   resetAt: string;
   fetchedAt: number;
@@ -166,7 +167,9 @@ async function requestUsage(env: Env, now: Date): Promise<D1UsageData> {
   const account = payload.data?.viewer?.accounts?.[0];
   if (!account) throw new Error("CLOUDFLARE_ANALYTICS_ACCOUNT_NOT_FOUND");
 
-  const plan = env.CLOUDFLARE_D1_PLAN === "paid" ? "paid" : "free";
+  const plan = env.CLOUDFLARE_D1_PLAN === "free" || env.CLOUDFLARE_D1_PLAN === "paid" ? env.CLOUDFLARE_D1_PLAN : "unknown";
+  const limitSource = plan === "unknown" ? "unavailable" : "configured";
+  const dailyLimit = plan === "free" ? { rowsRead: FREE_ROWS_READ_LIMIT, rowsWritten: FREE_ROWS_WRITTEN_LIMIT, storage: FREE_STORAGE_LIMIT_BYTES } : null;
   const trend = buildTrend(account.d1AnalyticsAdaptiveGroups ?? [], today, 30);
   const current = trend.at(-1) ?? { date: today, rowsRead: 0, rowsWritten: 0, queries: 0 };
   const latestStorageByDatabase = new Map<string, { hour: string; bytes: number }>();
@@ -182,17 +185,18 @@ async function requestUsage(env: Env, now: Date): Promise<D1UsageData> {
   return {
     configured: true,
     plan,
+    limitSource,
     timezone: "UTC",
     resetAt: nextUtcMidnight(now),
     fetchedAt,
     cacheExpiresAt: fetchedAt + CACHE_TTL_MS,
     today: {
       date: current.date,
-      rowsRead: usageMetric(current.rowsRead, plan === "free" ? FREE_ROWS_READ_LIMIT : null),
-      rowsWritten: usageMetric(current.rowsWritten, plan === "free" ? FREE_ROWS_WRITTEN_LIMIT : null),
+      rowsRead: usageMetric(current.rowsRead, dailyLimit?.rowsRead ?? null),
+      rowsWritten: usageMetric(current.rowsWritten, dailyLimit?.rowsWritten ?? null),
       queries: current.queries,
     },
-    storage: usageMetric(storageBytes, plan === "free" ? FREE_STORAGE_LIMIT_BYTES : null),
+    storage: usageMetric(storageBytes, dailyLimit?.storage ?? null),
     trend,
   };
 }
@@ -200,7 +204,7 @@ async function requestUsage(env: Env, now: Date): Promise<D1UsageData> {
 // 读取 D1 用量并缓存五分钟；缓存只存在 Worker isolate 内存，不占用 D1 写入额度。
 // 管理员主动刷新时可跳过本地缓存，普通页面进入仍复用五分钟结果。
 export async function getD1Usage(env: Env, now = new Date(), fresh = false): Promise<D1UsageData> {
-  const key = `${env.CLOUDFLARE_ACCOUNT_ID ?? ""}:${env.CLOUDFLARE_D1_PLAN ?? "free"}`;
+  const key = `${env.CLOUDFLARE_ACCOUNT_ID ?? ""}:${env.CLOUDFLARE_D1_PLAN ?? "unknown"}`;
   if (!fresh && usageCache?.key === key && usageCache.expiresAt > now.getTime()) return usageCache.data;
   const data = await requestUsage(env, now);
   usageCache = { key, expiresAt: data.cacheExpiresAt, data };

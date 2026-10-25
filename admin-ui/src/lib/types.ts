@@ -261,7 +261,8 @@ export type D1UsageMetric = {
 
 export type D1UsageData = {
   configured: true;
-  plan: "free" | "paid";
+  plan: "free" | "paid" | "unknown";
+  limitSource: "configured" | "unavailable";
   timezone: "UTC";
   resetAt: string;
   fetchedAt: number;
