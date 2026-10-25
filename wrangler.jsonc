@@ -16,7 +16,6 @@
     "ADMIN_PATH": "admin-change-me",
     "ADMIN_USERNAME": "admin",
     "CLOUDFLARE_ACCOUNT_ID": "",
-    "CLOUDFLARE_D1_DATABASE_ID": "",
     "CLOUDFLARE_D1_PLAN": "free"
   },
   "d1_databases": [

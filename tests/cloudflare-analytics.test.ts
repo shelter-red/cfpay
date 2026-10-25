@@ -13,7 +13,11 @@ describe("Cloudflare D1 analytics", () => {
             d1AnalyticsAdaptiveGroups: [
               { count: 7, dimensions: { date: "2026-10-05" }, sum: { rowsRead: 4_000_000, rowsWritten: 95_000 } },
             ],
-            d1StorageAdaptiveGroups: [{ dimensions: { datetimeHour: "2026-10-05T01:00:00Z" }, max: { databaseSizeBytes: 1_500_000_000 } }],
+            d1StorageAdaptiveGroups: [
+              { dimensions: { databaseId: "database-a", datetimeHour: "2026-10-05T01:00:00Z" }, max: { databaseSizeBytes: 1_500_000_000 } },
+              { dimensions: { databaseId: "database-a", datetimeHour: "2026-10-05T02:00:00Z" }, max: { databaseSizeBytes: 1_600_000_000 } },
+              { dimensions: { databaseId: "database-b", datetimeHour: "2026-10-05T01:00:00Z" }, max: { databaseSizeBytes: 2_000_000_000 } },
+            ],
           }],
         },
       },
@@ -23,7 +27,6 @@ describe("Cloudflare D1 analytics", () => {
 
     const usage = await getD1Usage({
       CLOUDFLARE_ACCOUNT_ID: "account-a",
-      CLOUDFLARE_D1_DATABASE_ID: "database-a",
       CLOUDFLARE_D1_PLAN: "free",
       CLOUDFLARE_ANALYTICS_TOKEN: "secret-token",
     } as Env, new Date("2026-10-05T02:00:00Z"));
@@ -31,15 +34,18 @@ describe("Cloudflare D1 analytics", () => {
     expect(usage.today).toMatchObject({ date: "2026-10-05", queries: 7 });
     expect(usage.today.rowsRead).toMatchObject({ used: 4_000_000, limit: 5_000_000, level: "warning" });
     expect(usage.today.rowsWritten).toMatchObject({ used: 95_000, limit: 100_000, level: "danger" });
-    expect(usage.storage).toMatchObject({ used: 1_500_000_000, limit: 5_000_000_000, level: "normal" });
+    expect(usage.storage).toMatchObject({ used: 3_600_000_000, limit: 5_000_000_000, level: "warning" });
     expect(usage.resetAt).toBe("2026-10-06T00:00:00.000Z");
     expect(usage.trend).toHaveLength(30);
     expect(usage.trend.at(-1)).toEqual({ date: "2026-10-05", rowsRead: 4_000_000, rowsWritten: 95_000, queries: 7 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).variables).toMatchObject({
+    const query = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(query.variables).toMatchObject({
       startDate: "2026-09-06",
       endDate: "2026-10-05",
     });
+    expect(query.query).not.toContain("databaseId: $databaseId");
+    expect(query.variables).not.toHaveProperty("databaseId");
   });
 
   it("reports Cloudflare time-range limits with a stable error code", async () => {
@@ -50,7 +56,6 @@ describe("Cloudflare D1 analytics", () => {
 
     await expect(getD1Usage({
       CLOUDFLARE_ACCOUNT_ID: "account-b",
-      CLOUDFLARE_D1_DATABASE_ID: "database-b",
       CLOUDFLARE_D1_PLAN: "free",
       CLOUDFLARE_ANALYTICS_TOKEN: "secret-token",
     } as Env, new Date("2026-10-05T02:00:00Z"))).rejects.toThrow("CLOUDFLARE_ANALYTICS_RANGE_TOO_WIDE");
@@ -76,7 +81,6 @@ describe("Cloudflare D1 analytics", () => {
     vi.stubGlobal("fetch", fetchMock);
     const env = {
       CLOUDFLARE_ACCOUNT_ID: "account-refresh",
-      CLOUDFLARE_D1_DATABASE_ID: "database-refresh",
       CLOUDFLARE_D1_PLAN: "free",
       CLOUDFLARE_ANALYTICS_TOKEN: "secret-token",
     } as Env;

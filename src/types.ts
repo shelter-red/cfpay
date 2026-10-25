@@ -24,8 +24,6 @@ export interface Env {
   TURNSTILE_SECRET_KEY?: string;
   /** Cloudflare 账户 ID，用于管理端查询 D1 Analytics。 */
   CLOUDFLARE_ACCOUNT_ID?: string;
-  /** 当前 D1 数据库 ID，用于限定 Analytics 查询范围。 */
-  CLOUDFLARE_D1_DATABASE_ID?: string;
   /** D1 套餐口径；免费计划展示每日硬额度，付费计划展示实际用量。 */
   CLOUDFLARE_D1_PLAN?: "free" | "paid";
   /** 只读 Analytics API Token，必须通过 Worker Secret 配置。 */

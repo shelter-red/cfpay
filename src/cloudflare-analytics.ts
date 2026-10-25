@@ -15,7 +15,7 @@ interface D1AnalyticsGroup {
 }
 
 interface D1StorageGroup {
-  dimensions: { datetimeHour: string };
+  dimensions: { databaseId: string; datetimeHour: string };
   max: { databaseSizeBytes: number };
 }
 
@@ -65,12 +65,12 @@ export interface D1UsageData {
 let usageCache: { key: string; expiresAt: number; data: D1UsageData } | null = null;
 
 const D1_USAGE_QUERY = `
-query D1Usage($accountTag: String!, $databaseId: String!, $startDate: Date!, $endDate: Date!, $startTime: Time!, $endTime: Time!) {
+query D1Usage($accountTag: String!, $startDate: Date!, $endDate: Date!, $startTime: Time!, $endTime: Time!) {
   viewer {
     accounts(filter: { accountTag: $accountTag }) {
       d1AnalyticsAdaptiveGroups(
         limit: 10000
-        filter: { databaseId: $databaseId, date_geq: $startDate, date_leq: $endDate }
+        filter: { date_geq: $startDate, date_leq: $endDate }
         orderBy: [date_ASC]
       ) {
         count
@@ -78,11 +78,11 @@ query D1Usage($accountTag: String!, $databaseId: String!, $startDate: Date!, $en
         sum { rowsRead rowsWritten }
       }
       d1StorageAdaptiveGroups(
-        limit: 1
-        filter: { databaseId: $databaseId, datetime_geq: $startTime, datetime_leq: $endTime }
+        limit: 10000
+        filter: { datetime_geq: $startTime, datetime_leq: $endTime }
         orderBy: [datetimeHour_DESC]
       ) {
-        dimensions { datetimeHour }
+        dimensions { databaseId datetimeHour }
         max { databaseSizeBytes }
       }
     }
@@ -128,9 +128,8 @@ function buildTrend(groups: D1AnalyticsGroup[], today: string, dayCount: number)
 // 调用 Cloudflare GraphQL Analytics API；错误统一转换成稳定错误码，令牌和查询内容不会回显。
 async function requestUsage(env: Env, now: Date): Promise<D1UsageData> {
   const accountId = env.CLOUDFLARE_ACCOUNT_ID?.trim();
-  const databaseId = env.CLOUDFLARE_D1_DATABASE_ID?.trim();
   const token = env.CLOUDFLARE_ANALYTICS_TOKEN?.trim();
-  if (!accountId || !databaseId || !token) throw new Error("CLOUDFLARE_ANALYTICS_NOT_CONFIGURED");
+  if (!accountId || !token) throw new Error("CLOUDFLARE_ANALYTICS_NOT_CONFIGURED");
 
   const today = now.toISOString().slice(0, 10);
   const startDate = shiftUtcDate(today, -29);
@@ -144,7 +143,6 @@ async function requestUsage(env: Env, now: Date): Promise<D1UsageData> {
         query: D1_USAGE_QUERY,
         variables: {
           accountTag: accountId,
-          databaseId,
           startDate,
           endDate: today,
           startTime,
@@ -171,7 +169,15 @@ async function requestUsage(env: Env, now: Date): Promise<D1UsageData> {
   const plan = env.CLOUDFLARE_D1_PLAN === "paid" ? "paid" : "free";
   const trend = buildTrend(account.d1AnalyticsAdaptiveGroups ?? [], today, 30);
   const current = trend.at(-1) ?? { date: today, rowsRead: 0, rowsWritten: 0, queries: 0 };
-  const storageBytes = Number(account.d1StorageAdaptiveGroups?.[0]?.max.databaseSizeBytes ?? 0);
+  const latestStorageByDatabase = new Map<string, { hour: string; bytes: number }>();
+  for (const row of account.d1StorageAdaptiveGroups ?? []) {
+    const databaseId = row.dimensions.databaseId;
+    const latest = latestStorageByDatabase.get(databaseId);
+    if (!latest || row.dimensions.datetimeHour > latest.hour) {
+      latestStorageByDatabase.set(databaseId, { hour: row.dimensions.datetimeHour, bytes: Number(row.max.databaseSizeBytes ?? 0) });
+    }
+  }
+  const storageBytes = [...latestStorageByDatabase.values()].reduce((total, row) => total + row.bytes, 0);
   const fetchedAt = now.getTime();
   return {
     configured: true,
@@ -194,7 +200,7 @@ async function requestUsage(env: Env, now: Date): Promise<D1UsageData> {
 // 读取 D1 用量并缓存五分钟；缓存只存在 Worker isolate 内存，不占用 D1 写入额度。
 // 管理员主动刷新时可跳过本地缓存，普通页面进入仍复用五分钟结果。
 export async function getD1Usage(env: Env, now = new Date(), fresh = false): Promise<D1UsageData> {
-  const key = `${env.CLOUDFLARE_ACCOUNT_ID ?? ""}:${env.CLOUDFLARE_D1_DATABASE_ID ?? ""}:${env.CLOUDFLARE_D1_PLAN ?? "free"}`;
+  const key = `${env.CLOUDFLARE_ACCOUNT_ID ?? ""}:${env.CLOUDFLARE_D1_PLAN ?? "free"}`;
   if (!fresh && usageCache?.key === key && usageCache.expiresAt > now.getTime()) return usageCache.data;
   const data = await requestUsage(env, now);
   usageCache = { key, expiresAt: data.cacheExpiresAt, data };
