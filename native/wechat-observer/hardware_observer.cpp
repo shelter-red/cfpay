@@ -160,8 +160,9 @@ volatile LONG64 g_lastLoggedInObservationAt = 0;
 volatile LONG64 g_observerStartedAt = 0;
 volatile LONG g_loginState = -1;
 volatile LONG g_consecutiveLoggedOutObservations = 0;
-volatile LONG64 g_receiptEntryCount = 0;
-volatile LONG64 g_receiptReturnCount = 0;
+volatile LONG64 g_newSyncEntryCount = 0;
+volatile LONG64 g_newSyncReturnCount = 0;
+volatile LONG64 g_addMsgCommandCount = 0;
 volatile LONG64 g_accountEntryCount = 0;
 volatile LONG64 g_accountReturnCount = 0;
 volatile LONG64 g_nicknameEntryCount = 0;
@@ -846,7 +847,7 @@ void captureNewSyncResponse(std::uintptr_t responseAddress, std::uint64_t captur
       continue;
     }
     if (commandId != kWeixinAddMsgCommandId) continue;
-    InterlockedIncrement64(&g_receiptEntryCount);
+    InterlockedIncrement64(&g_addMsgCommandCount);
     capturePayMessage(commandAddress, capturedAt);
   }
 }
@@ -1332,11 +1333,12 @@ std::string hookMetricsMessage(const char* prefix) {
   const std::uint64_t loginAgeMs = lastLoggedInAt == 0 || now < lastLoggedInAt ? 0 : now - lastLoggedInAt;
   return std::string(prefix) + "; loginState=" +
          (loginState == 1 ? "logged_in" : (loginState == 0 ? "logged_out" : "unknown")) +
-         "; loginAgeMs=" + std::to_string(loginAgeMs) + "; receiptEntries=" +
-         std::to_string(InterlockedCompareExchange64(&g_receiptEntryCount, 0, 0)) + "; payMessageScans=" +
+         "; loginAgeMs=" + std::to_string(loginAgeMs) + "; newSyncEntries=" +
+         std::to_string(InterlockedCompareExchange64(&g_newSyncEntryCount, 0, 0)) + "; addMsgCommands=" +
+         std::to_string(InterlockedCompareExchange64(&g_addMsgCommandCount, 0, 0)) + "; payMessageScans=" +
          std::to_string(InterlockedCompareExchange64(&g_payMessageScanCount, 0, 0)) + "; payMessages=" +
-         std::to_string(InterlockedCompareExchange64(&g_payMessageCount, 0, 0)) + "; receiptReturns=" +
-         std::to_string(InterlockedCompareExchange64(&g_receiptReturnCount, 0, 0)) + "; accountEntries=" +
+         std::to_string(InterlockedCompareExchange64(&g_payMessageCount, 0, 0)) + "; newSyncReturns=" +
+         std::to_string(InterlockedCompareExchange64(&g_newSyncReturnCount, 0, 0)) + "; accountEntries=" +
          std::to_string(InterlockedCompareExchange64(&g_accountEntryCount, 0, 0)) + "; accountReturns=" +
          std::to_string(InterlockedCompareExchange64(&g_accountReturnCount, 0, 0)) + "; nicknameEntries=" +
          std::to_string(InterlockedCompareExchange64(&g_nicknameEntryCount, 0, 0)) + "; nicknameReturns=" +
@@ -1485,16 +1487,16 @@ DWORD WINAPI workerMain(void*) {
 #ifdef CFPAY_WMPF_DIAGNOSTIC_BUILD
       const std::string metrics =
           "WMPF browser diagnostic active; sendAppletEvent=" +
-          std::to_string(InterlockedCompareExchange64(&g_receiptEntryCount, 0, 0)) + "; sessionSendData=" +
-          std::to_string(InterlockedCompareExchange64(&g_receiptReturnCount, 0, 0)) + "; notifyEvent=" +
+          std::to_string(InterlockedCompareExchange64(&g_newSyncEntryCount, 0, 0)) + "; sessionSendData=" +
+          std::to_string(InterlockedCompareExchange64(&g_newSyncReturnCount, 0, 0)) + "; notifyEvent=" +
           std::to_string(InterlockedCompareExchange64(&g_accountEntryCount, 0, 0)) + "; dispatchEvent=" +
           std::to_string(InterlockedCompareExchange64(&g_accountReturnCount, 0, 0)) + "; eventNameReadFailures=" +
           std::to_string(InterlockedCompareExchange64(&g_readFailureCount, 0, 0));
 #else
       std::string metrics =
           "会话摘要诊断运行中; viewModelBind=" +
-          std::to_string(InterlockedCompareExchange64(&g_receiptEntryCount, 0, 0)) + "; updateWrapper=" +
-          std::to_string(InterlockedCompareExchange64(&g_receiptReturnCount, 0, 0)) + "; serviceFamilyBind=" +
+          std::to_string(InterlockedCompareExchange64(&g_newSyncEntryCount, 0, 0)) + "; updateWrapper=" +
+          std::to_string(InterlockedCompareExchange64(&g_newSyncReturnCount, 0, 0)) + "; serviceFamilyBind=" +
           std::to_string(InterlockedCompareExchange64(&g_accountEntryCount, 0, 0)) + "; globalFamilyBind=" +
           std::to_string(InterlockedCompareExchange64(&g_accountReturnCount, 0, 0)) + "; hiddenPreview=" +
           std::to_string(InterlockedCompareExchange64(&g_diagnosticHiddenPreviewCount, 0, 0));
@@ -1702,14 +1704,14 @@ LONG CALLBACK vectoredHandler(PEXCEPTION_POINTERS exception) {
 
 #ifdef CFPAY_DIAGNOSTIC_BUILD
   if (slot0 && exception->ExceptionRecord->ExceptionAddress == g_hookAddress) {
-    InterlockedIncrement64(&g_receiptEntryCount);
+    InterlockedIncrement64(&g_newSyncEntryCount);
 #ifndef CFPAY_WMPF_DIAGNOSTIC_BUILD
     captureSessionPreviewShape(static_cast<std::uintptr_t>(context->Rdx));
     std::uintptr_t returnAddress = 0;
     if (readMemory(reinterpret_cast<const void*>(context->Rsp), &returnAddress, sizeof(returnAddress))) {
       dumpSessionModelSlots(static_cast<std::uintptr_t>(context->Rdx),
                             returnAddress,
-                            static_cast<std::int32_t>(InterlockedCompareExchange64(&g_receiptEntryCount, 0, 0)));
+                            static_cast<std::int32_t>(InterlockedCompareExchange64(&g_newSyncEntryCount, 0, 0)));
       classifyDiagnosticCallerSummary(static_cast<std::uintptr_t>(context->Rdx), returnAddress);
       trackDiagnosticViewModel(
           static_cast<std::uintptr_t>(context->Rcx), static_cast<std::uintptr_t>(context->Rdx), returnAddress);
@@ -1720,7 +1722,7 @@ LONG CALLBACK vectoredHandler(PEXCEPTION_POINTERS exception) {
     handled = true;
   }
   if (slot1 && exception->ExceptionRecord->ExceptionAddress == g_accountHookAddress) {
-    InterlockedIncrement64(&g_receiptReturnCount);
+    InterlockedIncrement64(&g_newSyncReturnCount);
     handled = true;
   }
   if (slot2 && exception->ExceptionRecord->ExceptionAddress == g_nicknameHookAddress) {
@@ -1762,7 +1764,7 @@ LONG CALLBACK vectoredHandler(PEXCEPTION_POINTERS exception) {
         InterlockedIncrement64(&g_readFailureCount);
       }
     } else {
-      InterlockedIncrement64(&g_receiptEntryCount);
+      InterlockedIncrement64(&g_newSyncEntryCount);
       std::uintptr_t returnAddress = 0;
       if (readMemory(reinterpret_cast<const void*>(context->Rsp), &returnAddress, sizeof(returnAddress)) &&
           returnAddress != 0) {
@@ -1784,7 +1786,7 @@ LONG CALLBACK vectoredHandler(PEXCEPTION_POINTERS exception) {
   if (slot1 && !g_testMode && InterlockedCompareExchange(&state->returnArmed, 1, 1) == 1 &&
       reinterpret_cast<std::uintptr_t>(exception->ExceptionRecord->ExceptionAddress) == state->returnAddress) {
     captureNewSyncResponse(state->outputAddress, unixTimeMilliseconds());
-    InterlockedIncrement64(&g_receiptReturnCount);
+    InterlockedIncrement64(&g_newSyncReturnCount);
     context->Dr1 = 0;
     context->Dr7 &= ~(kSlot1EnableMask | kSlot1ControlMask);
     state->returnAddress = 0;
@@ -1797,7 +1799,7 @@ LONG CALLBACK vectoredHandler(PEXCEPTION_POINTERS exception) {
   if (slot1 && g_testMode && InterlockedCompareExchange(&state->returnArmed, 1, 1) == 1 &&
       reinterpret_cast<std::uintptr_t>(exception->ExceptionRecord->ExceptionAddress) == state->returnAddress) {
     const EventRecord payment = captureEvent(state->outputAddress);
-    InterlockedIncrement64(&g_receiptReturnCount);
+    InterlockedIncrement64(&g_newSyncReturnCount);
     if (!payment.valid) InterlockedIncrement64(&g_readFailureCount);
     enqueueEvent(payment);
     context->Dr1 = 0;
@@ -1934,8 +1936,9 @@ DWORD WINAPI bootstrapMain(void*) {
   InterlockedExchange64(&g_observerStartedAt, static_cast<LONG64>(unixTimeMilliseconds()));
   InterlockedExchange(&g_loginState, -1);
   InterlockedExchange(&g_consecutiveLoggedOutObservations, 0);
-  InterlockedExchange64(&g_receiptEntryCount, 0);
-  InterlockedExchange64(&g_receiptReturnCount, 0);
+  InterlockedExchange64(&g_newSyncEntryCount, 0);
+  InterlockedExchange64(&g_newSyncReturnCount, 0);
+  InterlockedExchange64(&g_addMsgCommandCount, 0);
   InterlockedExchange64(&g_accountEntryCount, 0);
   InterlockedExchange64(&g_accountReturnCount, 0);
   InterlockedExchange64(&g_nicknameEntryCount, 0);

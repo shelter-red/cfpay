@@ -1015,8 +1015,11 @@ std::string statusMetrics(const std::string& message) {
   const std::map<std::string, std::string> labels = {
       {"loginState", u8"\u767b\u5f55\u72b6\u6001"},
       {"loginAgeMs", u8"\u767b\u5f55\u8bc1\u636e\u8ddd\u4eca\u6beb\u79d2"},
-      {"receiptEntries", u8"\u6536\u6b3e\u52a9\u624b\u5165\u53e3\u547d\u4e2d\u6570"},
-      {"receiptReturns", u8"\u6536\u6b3e\u52a9\u624b\u8fd4\u56de\u547d\u4e2d\u6570"},
+      {"newSyncEntries", u8"NewSync \u5165\u53e3\u547d\u4e2d\u6570"},
+      {"newSyncReturns", u8"NewSync \u8fd4\u56de\u547d\u4e2d\u6570"},
+      {"addMsgCommands", u8"AddMsg \u547d\u4ee4\u6570"},
+      {"payMessageScans", u8"paymsg \u89e3\u6790\u6570"},
+      {"payMessages", u8"\u652f\u4ed8\u6d88\u606f\u6570"},
       {"accountEntries", u8"\u8d26\u53f7\u5165\u53e3\u547d\u4e2d\u6570"},
       {"accountReturns", u8"\u8d26\u53f7\u8fd4\u56de\u547d\u4e2d\u6570"},
       {"nicknameEntries", u8"\u6635\u79f0\u5165\u53e3\u547d\u4e2d\u6570"},
@@ -2599,8 +2602,8 @@ int runSelfTest() {
   wrong["fields"]["receiverUsername"] = "wxid_other";
   if (evaluateRecord(wrong, config, now).reason != "RECEIVER_MISMATCH") return 11;
   if (statusDescription("HOOK_ACTIVE").find(u8"\u5fae\u4fe1\u5df2\u767b\u5f55") == std::string::npos) return 12;
-  if (statusMetrics("observer active; loginState=logged_in; receiptEntries=2; threads=3") !=
-      u8"; \u767b\u5f55\u72b6\u6001=\u5df2\u767b\u5f55; \u6536\u6b3e\u52a9\u624b\u5165\u53e3\u547d\u4e2d\u6570=2; \u5df2\u8986\u76d6\u7ebf\u7a0b\u6570=3") {
+  if (statusMetrics("observer active; loginState=logged_in; newSyncEntries=2; addMsgCommands=4; payMessageScans=3; payMessages=1; newSyncReturns=2; threads=3") !=
+      u8"; \u767b\u5f55\u72b6\u6001=\u5df2\u767b\u5f55; NewSync \u5165\u53e3\u547d\u4e2d\u6570=2; AddMsg \u547d\u4ee4\u6570=4; paymsg \u89e3\u6790\u6570=3; \u652f\u4ed8\u6d88\u606f\u6570=1; NewSync \u8fd4\u56de\u547d\u4e2d\u6570=2; \u5df2\u8986\u76d6\u7ebf\u7a0b\u6570=3") {
     return 13;
   }
   if (uploadDiagnostic(false, 503, 12029) != u8"\u7ed3\u679c=\u5931\u8d25 httpStatus=503 winError=12029") return 14;

@@ -3229,3 +3229,12 @@
 - 在用户交互会话启动后，账号登录和昵称入口命中，后台连续收到 `HEALTHY / HOOK_ACTIVE`；一次指标快照记录 NewSync 解析入口 13 次、paymsg 扫描 5 次、收款消息 0 条、队列丢弃 0 条。该快照证明解析路径已运行，不代表已捕获真实收款；付款闭环仍等待管理员发起小额真实支付。
 - 诊断发现从 WSL 会话创建的 GUI 进程落在 Session 0，导致登录界面无法显示、二维码检测不到；现监控端和微信均运行在用户 Session 1。未触发付款，未推送或发布二进制。
 - 修复后的专项测试 18 项通过；完整 Vitest 测试 23 个文件通过、1 个跳过，共 133 项通过、2 项跳过；`git diff --check` 通过。
+
+### WECHAT-005 拆分 4.2 Hook 运行指标
+
+- 2026-11-01 复查 Windows 本机日志时发现旧指标 `receiptEntries` 混计 NewSync 入口与 AddMsg 命令，且 `receiptReturns` 被用作 NewSync 返回计数，名称容易让人误判支付消息已命中。
+- 原生监控日志现分别记录 `newSyncEntries`、`newSyncReturns`、`addMsgCommands`、`payMessageScans` 和 `payMessages`；管理端本地日志将这些计数映射为中文说明。测试覆盖字段名称和旧字段移除。
+- 更新前，旧 DLL 清理因部分线程硬件断点无法清除而失败。随后先停止监控端、Hook 宿主及目标微信进程树，确认 5 个微信进程退出，再安装新版；没有覆盖仍被映射的 DLL。
+- 新 EXE 已安装，SHA-256 为 `7df5775342c5d66b931c2c06b8ddfa25080e8d342a4d2d7bbe0f94aed677e5f5`；微信当前加载 DLL SHA-256 为 `9aa0167ff9be1cac4a33bd9ce277cca2e8de181ac904f34750347efdda0069f2`。微信 4.2.0.11 在用户 Session 1 登录成功，昵称 Hook 命中，Worker 接收 `/api/monitor/status` HTTP 200 且状态为 `HEALTHY / HOOK_ACTIVE`。
+- 新指标快照：`newSyncEntries=4`、`newSyncReturns=4`、`addMsgCommands=4`、`payMessageScans=2`、`payMessages=0`、`readFailures=3`、`queueDrops=0`。NewSync Hook 路径已运行；本次没有真实支付，3 次读取失败来源尚不能归因到支付消息解析，需在下一次真实支付观察窗口对比。
+- 真实收款捕获和 Worker 订单匹配仍需要管理员进行一笔真实小额支付验证；未执行付款，不能以 Hook 健康或计数增长替代支付闭环证据。

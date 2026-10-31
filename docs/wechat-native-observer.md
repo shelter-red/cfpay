@@ -217,6 +217,8 @@ cfpay-wechat-monitor.exe --internal-host --stop-weixin <pid>
 
 生产观察器在目标进程内再次校验 NewSync 解析入口、账号读取入口、账号调用点及昵称读取入口。账号调用点必须匹配 4.2 的 `e8 2d 23 4f fe`；运行时校验失败会报告具体入口，不会安装硬件断点。更换微信版本时，宿主与观察器的目标签名必须一并更新并重新构建单 EXE。
 
+调试日志中的 NewSync 与支付消息指标分别计数：`newSyncEntries` / `newSyncReturns` 是解析入口及返回次数，`addMsgCommands` 是 NewSync 响应中识别到的 AddMsg 命令数，`payMessageScans` 是候选支付消息解析次数，`payMessages` 是成功读取 paymsg 内容并进入本地事件队列的消息数。旧版 `receiptEntries` 同时统计了解析入口和 AddMsg 命令，不能用于判断收款消息是否命中；排查应以拆分后的指标为准。指标不包含支付正文或账号标识。
+
 `--test-inject` 具有硬编码进程名限制，只接受 `cfpay-hook-test-target.exe`。加载器先取得目标进程的 `kernel32.dll` 基址，再使用本地 `LoadLibraryW` 相对偏移计算远程入口，不假设系统 DLL 在所有进程中地址相同。
 
 测试命令：

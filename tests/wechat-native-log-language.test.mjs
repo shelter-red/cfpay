@@ -187,6 +187,19 @@ describe("native wechat monitor log language", () => {
     expect(observer).toContain("writeStatus(\"UNSUPPORTED\", \"SIGNATURE_MISMATCH\", validationMessage.c_str());");
   });
 
+  it("reports NewSync, AddMsg and paymsg counters separately", async () => {
+    const observer = await readFile(observerSourcePath, "utf8");
+    const monitor = await readFile(monitorSourcePath, "utf8");
+
+    expect(observer).toContain("; newSyncEntries=");
+    expect(observer).toContain("; addMsgCommands=");
+    expect(observer).toContain("; payMessageScans=");
+    expect(observer).toContain("; newSyncReturns=");
+    expect(observer).not.toContain("receiptEntries=");
+    expect(monitor).toContain('{"newSyncEntries", u8"NewSync \\u5165\\u53e3\\u547d\\u4e2d\\u6570"}');
+    expect(monitor).toContain('{"addMsgCommands", u8"AddMsg \\u547d\\u4ee4\\u6570"}');
+  });
+
   it("rebuilds the single EXE when the embedded observer DLL changes", async () => {
     const build = await readFile(nativeBuildPath, "utf8");
 

@@ -589,3 +589,13 @@
 - decision_delta: [runtime_hook=validated, account_callsite_signature=4.2, real_payment=waiting_for_owner]
 - carry_forward_refs: [evidence/E-static-weixin-4.2.0.11.md, evidence/E-dynamic-weixin-4.2.0.11.md, workitems.md]
 - next: observe one owner-operated real payment and verify parsed fields reach the Worker order flow
+
+## 2026-11-01T04:10:00+08:00 | lead | weixin-4.2.0.11-metric-separation
+- action: separate NewSync, AddMsg and paymsg observer counters and prepare a clean Windows installation
+- command_or_ref: native observer counters; Windows process tree and loaded-module inspection; single-EXE build
+- result_summary: old receiptEntries mixed NewSync entries with AddMsg commands; updated counters passed focused tests and native self-test, then all five old Weixin processes were stopped before reinstall; new DLL reached HEALTHY/HOOK_ACTIVE with NewSync 4/4, AddMsg 4, paymsg scans 2, payment messages 0, read failures 3 and queue drops 0
+- artifacts: [../../native/wechat-observer/hardware_observer.cpp, ../../native/wechat-observer/wechat_monitor.cpp, ../../tests/wechat-native-log-language.test.mjs, ../../docs/wechat-native-observer.md, ../../docs/integration-journal.md, evidence/E-dynamic-weixin-4.2.0.11.md]
+- evidence_ids: [E-DYNAMIC-WEIXIN-4.2.0.11]
+- decision_delta: [metrics=split_by_stage, old_dll=must_unload_before_replacement, real_payment=owner_required]
+- carry_forward_refs: [evidence/E-static-weixin-4.2.0.11.md, evidence/E-dynamic-weixin-4.2.0.11.md, workitems.md]
+- next: observe an owner-operated real payment and verify parsed fields reach the Worker order flow
