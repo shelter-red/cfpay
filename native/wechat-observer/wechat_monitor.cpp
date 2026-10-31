@@ -1019,7 +1019,13 @@ std::string statusMetrics(const std::string& message) {
       {"newSyncReturns", u8"NewSync \u8fd4\u56de\u547d\u4e2d\u6570"},
       {"addMsgCommands", u8"AddMsg \u547d\u4ee4\u6570"},
       {"payMessageScans", u8"paymsg \u89e3\u6790\u6570"},
+      {"addMsgWithoutPayload", u8"\u65e0\u8f7d\u8377 AddMsg \u547d\u4ee4\u6570"},
       {"payMessages", u8"\u652f\u4ed8\u6d88\u606f\u6570"},
+      {"newSyncReadFailures", u8"NewSync \u8bfb\u53d6\u5931\u8d25\u6570"},
+      {"payMessageReadFailures", u8"paymsg \u8bfb\u53d6\u5931\u8d25\u6570"},
+      {"payMessageObjectReadFailures", u8"paymsg \u5bf9\u8c61\u8bfb\u53d6\u5931\u8d25"},
+      {"payMessageMetadataFailures", u8"paymsg \u5143\u6570\u636e\u5931\u8d25"},
+      {"payMessageDataReadFailures", u8"paymsg \u6570\u636e\u8bfb\u53d6\u5931\u8d25"},
       {"accountEntries", u8"\u8d26\u53f7\u5165\u53e3\u547d\u4e2d\u6570"},
       {"accountReturns", u8"\u8d26\u53f7\u8fd4\u56de\u547d\u4e2d\u6570"},
       {"nicknameEntries", u8"\u6635\u79f0\u5165\u53e3\u547d\u4e2d\u6570"},
@@ -2602,8 +2608,8 @@ int runSelfTest() {
   wrong["fields"]["receiverUsername"] = "wxid_other";
   if (evaluateRecord(wrong, config, now).reason != "RECEIVER_MISMATCH") return 11;
   if (statusDescription("HOOK_ACTIVE").find(u8"\u5fae\u4fe1\u5df2\u767b\u5f55") == std::string::npos) return 12;
-  if (statusMetrics("observer active; loginState=logged_in; newSyncEntries=2; addMsgCommands=4; payMessageScans=3; payMessages=1; newSyncReturns=2; threads=3") !=
-      u8"; \u767b\u5f55\u72b6\u6001=\u5df2\u767b\u5f55; NewSync \u5165\u53e3\u547d\u4e2d\u6570=2; AddMsg \u547d\u4ee4\u6570=4; paymsg \u89e3\u6790\u6570=3; \u652f\u4ed8\u6d88\u606f\u6570=1; NewSync \u8fd4\u56de\u547d\u4e2d\u6570=2; \u5df2\u8986\u76d6\u7ebf\u7a0b\u6570=3") {
+  if (statusMetrics("observer active; loginState=logged_in; newSyncEntries=2; addMsgCommands=4; payMessageScans=3; addMsgWithoutPayload=1; payMessages=1; newSyncReturns=2; newSyncReadFailures=1; payMessageReadFailures=2; payMessageObjectReadFailures=1; payMessageMetadataFailures=1; payMessageDataReadFailures=0; threads=3") !=
+      u8"; \u767b\u5f55\u72b6\u6001=\u5df2\u767b\u5f55; NewSync \u5165\u53e3\u547d\u4e2d\u6570=2; AddMsg \u547d\u4ee4\u6570=4; paymsg \u89e3\u6790\u6570=3; \u65e0\u8f7d\u8377 AddMsg \u547d\u4ee4\u6570=1; \u652f\u4ed8\u6d88\u606f\u6570=1; NewSync \u8fd4\u56de\u547d\u4e2d\u6570=2; NewSync \u8bfb\u53d6\u5931\u8d25\u6570=1; paymsg \u8bfb\u53d6\u5931\u8d25\u6570=2; paymsg \u5bf9\u8c61\u8bfb\u53d6\u5931\u8d25=1; paymsg \u5143\u6570\u636e\u5931\u8d25=1; paymsg \u6570\u636e\u8bfb\u53d6\u5931\u8d25=0; \u5df2\u8986\u76d6\u7ebf\u7a0b\u6570=3") {
     return 13;
   }
   if (uploadDiagnostic(false, 503, 12029) != u8"\u7ed3\u679c=\u5931\u8d25 httpStatus=503 winError=12029") return 14;

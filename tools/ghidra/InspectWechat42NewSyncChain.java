@@ -16,7 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class InspectWechat42NewSyncChain extends GhidraScript {
-    private static final long[] FUNCTION_RVAS = {0x10b0230, 0x2fcc400, 0x2fcbe10, 0x6a2ef0};
+    private static final long[] FUNCTION_RVAS = {0x10b0230, 0x2fcc400, 0x2fcbe10, 0x6a2ef0, 0x1641e70};
     private static final Table[] TABLES = {
         new Table("NewSyncResponse", 0x929f408, 0, 11),
         new Table("CmdList", 0x96d0558, 0, 11),

@@ -156,10 +156,13 @@ describe("native wechat monitor log language", () => {
     expect(monitor).toContain('payload["hookOffset"] = parserHookOffsetText();');
   });
 
-  it("reads the 4.2 CmdItem string from the command object", async () => {
+  it("reads the 4.2 AddMsg content string through its nested object", async () => {
     const observer = await readFile(observerSourcePath, "utf8");
 
-    expect(observer).toContain("kCmdItemStringObjectOffset = 0x08");
+    expect(observer).toContain("kCmdItemPayloadObjectOffset = 0x08");
+    expect(observer).toContain("kAddMsgContentStringObjectOffset = 0x08");
+    expect(observer).toContain("kAddMsgPresentMaskOffset = 0x18");
+    expect(observer).toContain("(presentMask & kAddMsgContentPresentMask) == 0");
     expect(observer).toContain("kCmdItemIdOffset = 0x10");
     expect(observer).toContain("resolvePayloadString(commandItemAddress");
     expect(observer).toContain("capturePayMessage(commandAddress, capturedAt);");
@@ -195,9 +198,18 @@ describe("native wechat monitor log language", () => {
     expect(observer).toContain("; addMsgCommands=");
     expect(observer).toContain("; payMessageScans=");
     expect(observer).toContain("; newSyncReturns=");
+    expect(observer).toContain("; addMsgWithoutPayload=");
+    expect(observer).toContain("; newSyncReadFailures=");
+    expect(observer).toContain("; payMessageReadFailures=");
+    expect(observer).toContain("; payMessageObjectReadFailures=");
+    expect(observer).toContain("; payMessageMetadataFailures=");
+    expect(observer).toContain("; payMessageDataReadFailures=");
     expect(observer).not.toContain("receiptEntries=");
     expect(monitor).toContain('{"newSyncEntries", u8"NewSync \\u5165\\u53e3\\u547d\\u4e2d\\u6570"}');
     expect(monitor).toContain('{"addMsgCommands", u8"AddMsg \\u547d\\u4ee4\\u6570"}');
+    expect(monitor).toContain('{"addMsgWithoutPayload", u8"\\u65e0\\u8f7d\\u8377 AddMsg \\u547d\\u4ee4\\u6570"}');
+    expect(monitor).toContain('{"payMessageReadFailures", u8"paymsg \\u8bfb\\u53d6\\u5931\\u8d25\\u6570"}');
+    expect(monitor).toContain('{"payMessageMetadataFailures", u8"paymsg \\u5143\\u6570\\u636e\\u5931\\u8d25"}');
   });
 
   it("rebuilds the single EXE when the embedded observer DLL changes", async () => {

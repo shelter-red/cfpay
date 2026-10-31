@@ -609,3 +609,13 @@
 - decision_delta: [runtime_newsynchronization=confirmed, real_payment_parser_validation=still_required, read_failure_source=unknown]
 - carry_forward_refs: [evidence/E-static-weixin-4.2.0.11.md, evidence/E-dynamic-weixin-4.2.0.11.md, workitems.md]
 - next: administrator performs a real small payment, then verify structured event fields and Worker order matching
+
+## 2026-11-01T04:35:00+08:00 | lead | weixin-4.2.0.11-nested-paymsg-layout-fix
+- action: trace repeated paymsg metadata failures to the nested protobuf object layout, fix the pointer chain, rebuild, and install the single EXE
+- command_or_ref: Ghidra 12.1.4 functions `FUN_182fcbe10`, `FUN_1806a2ef0`, `FUN_181641e70`; `bash tools/build-single-exe.sh --self-test`; Windows monitor log
+- result_summary: CmdItem `+0x08` points to AddMsg, not std::string; AddMsg field 2 uses present bit `+0x18 bit 1` and its string object at `+0x08`. Production capture now checks that bit and follows both pointers before reading string metadata. Full tests (134 passed, 2 skipped), typecheck, Windows self-test, embedded-DLL check and installed-binary hash comparison passed. New monitor reports successfully; Weixin is currently `LOGIN_REQUIRED`, so post-fix payment parsing is not yet dynamically verified.
+- artifacts: [../../native/wechat-observer/hardware_observer.cpp, ../../tests/wechat-native-log-language.test.mjs, evidence/E-static-weixin-4.2.0.11.md, evidence/E-dynamic-weixin-4.2.0.11.md]
+- evidence_ids: [E-STATIC-WEIXIN-4.2.0.11, E-DYNAMIC-WEIXIN-4.2.0.11]
+- decision_delta: [cmditem_payload=AddMsg_pointer, addmsg_content=present_bit_1_plus_nested_string, metadata_failure_root_cause=wrong_pointer_level, live_payment=not_performed]
+- carry_forward_refs: [scope.md, workitems.md, evidence/E-static-weixin-4.2.0.11.md, evidence/E-dynamic-weixin-4.2.0.11.md]
+- next: owner completes WeChat login; confirm post-fix NewSync/paymsg counters, then owner performs a real small payment to validate event parsing and Worker order matching

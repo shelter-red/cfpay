@@ -169,6 +169,12 @@ volatile LONG64 g_nicknameEntryCount = 0;
 volatile LONG64 g_nicknameReturnCount = 0;
 volatile LONG64 g_payMessageScanCount = 0;
 volatile LONG64 g_payMessageCount = 0;
+volatile LONG64 g_addMsgWithoutPayloadCount = 0;
+volatile LONG64 g_newSyncReadFailureCount = 0;
+volatile LONG64 g_payMessageReadFailureCount = 0;
+volatile LONG64 g_payMessageObjectReadFailureCount = 0;
+volatile LONG64 g_payMessageMetadataFailureCount = 0;
+volatile LONG64 g_payMessageDataReadFailureCount = 0;
 volatile LONG64 g_readFailureCount = 0;
 volatile LONG64 g_queueDropCount = 0;
 #if defined(CFPAY_DIAGNOSTIC_BUILD) && !defined(CFPAY_WMPF_DIAGNOSTIC_BUILD)
@@ -552,8 +558,11 @@ constexpr std::size_t kMaxCommandsPerResponse = 32;
 constexpr std::uintptr_t kResponseCommandListOffset = 0x08;
 constexpr std::uintptr_t kCommandListItemsOffset = 0x08;
 constexpr std::uintptr_t kCommandListItemCountOffset = 0x10;
-constexpr std::uintptr_t kCmdItemStringObjectOffset = 0x08;
+constexpr std::uintptr_t kCmdItemPayloadObjectOffset = 0x08;
 constexpr std::uintptr_t kCmdItemIdOffset = 0x10;
+constexpr std::uintptr_t kAddMsgContentStringObjectOffset = 0x08;
+constexpr std::uintptr_t kAddMsgPresentMaskOffset = 0x18;
+constexpr std::uint8_t kAddMsgContentPresentMask = 0x02;
 constexpr std::uintptr_t kStringSizeOffset = 0x10;
 constexpr std::uintptr_t kStringCapacityOffset = 0x18;
 constexpr std::uint32_t kPayMsgFieldFrom = 2;
@@ -562,6 +571,16 @@ constexpr std::uint32_t kPayMsgFieldMsgType = 4;
 constexpr std::uint32_t kPayMsgFieldContent = 5;
 constexpr std::uint32_t kPayMsgFieldCreateTime = 9;
 constexpr std::uint32_t kPayMsgFieldServerMsgId = 12;
+
+enum class PayloadStringResult {
+  Readable,
+  Empty,
+  ItemUnreadable,
+  MetadataUnreadable,
+  MetadataInvalid,
+  DataUnreadable,
+  DataInvalid,
+};
 constexpr std::uint32_t kPayMsgContentInnerField = 1;
 
 // 截断可能落在 UTF-8 多字节序列中间，导致宿主 JSON 解析失败；此处按码点边界裁剪并替换非法字节。
@@ -665,35 +684,69 @@ bool nextProtobufField(std::uintptr_t address, std::size_t size, std::size_t* po
   }
 }
 
-// 读取 CmdItem 内 std::string 对象的数据指针与长度（容量 >= 16 时数据在堆上）。
-bool resolvePayloadString(std::uintptr_t commandItemAddress, std::uintptr_t* dataAddress, std::size_t* length) {
+// 读取 CmdItem -> AddMsg -> 内容字符串，校验字段存在位后再读取 std::string。
+PayloadStringResult resolvePayloadString(std::uintptr_t commandItemAddress,
+                                         std::uintptr_t* dataAddress,
+                                         std::size_t* length) {
   std::uintptr_t vtable = 0;
-  std::uintptr_t stringObject = 0;
+  std::uintptr_t addMsgAddress = 0;
   if (!readMemory(reinterpret_cast<const void*>(commandItemAddress), &vtable, sizeof(vtable)) ||
       vtable != g_weixinModuleBase + kWeixinCmdItemVtableRva) {
-    return false;
+    return PayloadStringResult::ItemUnreadable;
   }
-  if (!readMemory(reinterpret_cast<const void*>(commandItemAddress + kCmdItemStringObjectOffset), &stringObject,
-                  sizeof(stringObject)) ||
-      stringObject == 0) {
-    return false;
+  if (!readMemory(reinterpret_cast<const void*>(commandItemAddress + kCmdItemPayloadObjectOffset), &addMsgAddress,
+                  sizeof(addMsgAddress))) {
+    return PayloadStringResult::ItemUnreadable;
   }
+  if (addMsgAddress == 0) return PayloadStringResult::Empty;
+  std::uint8_t presentMask = 0;
+  std::uintptr_t stringObject = 0;
+  if (!readMemory(reinterpret_cast<const void*>(addMsgAddress + kAddMsgPresentMaskOffset), &presentMask,
+                  sizeof(presentMask))) {
+    return PayloadStringResult::ItemUnreadable;
+  }
+  if ((presentMask & kAddMsgContentPresentMask) == 0) return PayloadStringResult::Empty;
+  if (!readMemory(reinterpret_cast<const void*>(addMsgAddress + kAddMsgContentStringObjectOffset), &stringObject,
+                  sizeof(stringObject))) {
+    return PayloadStringResult::ItemUnreadable;
+  }
+  if (stringObject == 0) return PayloadStringResult::Empty;
   std::uint64_t size = 0;
   std::uint64_t capacity = 0;
   if (!readMemory(reinterpret_cast<const void*>(stringObject + kStringSizeOffset), &size, sizeof(size)) ||
-      !readMemory(reinterpret_cast<const void*>(stringObject + kStringCapacityOffset), &capacity, sizeof(capacity)) ||
-      size == 0 || size > kMaxPayloadBytes || capacity < size) {
-    return false;
+      !readMemory(reinterpret_cast<const void*>(stringObject + kStringCapacityOffset), &capacity, sizeof(capacity))) {
+    return PayloadStringResult::MetadataUnreadable;
   }
+  if (size == 0) return PayloadStringResult::Empty;
+  if (size > kMaxPayloadBytes || capacity < size) return PayloadStringResult::MetadataInvalid;
   std::uintptr_t data = stringObject;
   if (capacity >= 0x10 &&
-      !readMemory(reinterpret_cast<const void*>(stringObject), &data, sizeof(data)) ) {
-    return false;
+      !readMemory(reinterpret_cast<const void*>(stringObject), &data, sizeof(data))) {
+    return PayloadStringResult::DataUnreadable;
   }
-  if (data < 0x10000) return false;
+  if (data < 0x10000) return PayloadStringResult::DataInvalid;
   *dataAddress = data;
   *length = static_cast<std::size_t>(size);
-  return true;
+  return PayloadStringResult::Readable;
+}
+
+// 同时更新总失败数和 NewSync 结构读取失败数。
+void recordNewSyncReadFailure() {
+  InterlockedIncrement64(&g_newSyncReadFailureCount);
+  InterlockedIncrement64(&g_readFailureCount);
+}
+
+// 同时更新总失败数和 paymsg 载荷读取失败数。
+void recordPayMessageReadFailure(PayloadStringResult stage) {
+  InterlockedIncrement64(&g_payMessageReadFailureCount);
+  InterlockedIncrement64(&g_readFailureCount);
+  if (stage == PayloadStringResult::ItemUnreadable) {
+    InterlockedIncrement64(&g_payMessageObjectReadFailureCount);
+  } else if (stage == PayloadStringResult::MetadataUnreadable || stage == PayloadStringResult::MetadataInvalid) {
+    InterlockedIncrement64(&g_payMessageMetadataFailureCount);
+  } else {
+    InterlockedIncrement64(&g_payMessageDataReadFailureCount);
+  }
 }
 
 // 解析 CmdID=5 的消息载荷，按标签名提取 paymsg 的结构化字段（transid、fee、feetype、status、type、timestamp 等）。
@@ -701,8 +754,13 @@ bool resolvePayloadString(std::uintptr_t commandItemAddress, std::uintptr_t* dat
 void capturePayMessage(std::uintptr_t commandItemAddress, std::uint64_t capturedAt) {
   std::uintptr_t dataAddress = 0;
   std::size_t payloadLength = 0;
-  if (!resolvePayloadString(commandItemAddress, &dataAddress, &payloadLength)) {
-    InterlockedIncrement64(&g_readFailureCount);
+  const PayloadStringResult payloadResult = resolvePayloadString(commandItemAddress, &dataAddress, &payloadLength);
+  if (payloadResult == PayloadStringResult::Empty) {
+    InterlockedIncrement64(&g_addMsgWithoutPayloadCount);
+    return;
+  }
+  if (payloadResult != PayloadStringResult::Readable) {
+    recordPayMessageReadFailure(payloadResult);
     return;
   }
 
@@ -789,7 +847,7 @@ void capturePayMessage(std::uintptr_t commandItemAddress, std::uint64_t captured
   if (!readMemory(reinterpret_cast<const void*>(dataAddress + contentOffset), event.payContent, copyLength)) {
     event.valid = false;
     setError(&event, "PAY_MESSAGE_CONTENT_READ_FAILED");
-    InterlockedIncrement64(&g_readFailureCount);
+    recordPayMessageReadFailure(PayloadStringResult::DataUnreadable);
   } else {
     event.payContent[copyLength] = '\0';
     sanitizeUtf8(event.payContent, copyLength);
@@ -805,17 +863,19 @@ void captureNewSyncResponse(std::uintptr_t responseAddress, std::uint64_t captur
   std::uintptr_t commandList = 0;
   if (!readMemory(reinterpret_cast<const void*>(responseAddress), &vtable, sizeof(vtable)) ||
       vtable != g_weixinModuleBase + kWeixinNewSyncResponseVtableRva) {
+    recordNewSyncReadFailure();
     return;
   }
   if (!readMemory(reinterpret_cast<const void*>(responseAddress + kResponseCommandListOffset), &commandList,
                   sizeof(commandList)) ||
       commandList == 0) {
+    recordNewSyncReadFailure();
     return;
   }
   std::uintptr_t commandListVtable = 0;
   if (!readMemory(reinterpret_cast<const void*>(commandList), &commandListVtable, sizeof(commandListVtable)) ||
       commandListVtable != g_weixinModuleBase + kWeixinCmdListVtableRva) {
-    InterlockedIncrement64(&g_readFailureCount);
+    recordNewSyncReadFailure();
     return;
   }
   std::int32_t itemCount = 0;
@@ -824,7 +884,7 @@ void captureNewSyncResponse(std::uintptr_t responseAddress, std::uint64_t captur
                   sizeof(itemCount)) ||
       !readMemory(reinterpret_cast<const void*>(commandList + kCommandListItemsOffset), &items, sizeof(items)) ||
       itemCount <= 0 || itemCount > 4096 || items == 0) {
-    InterlockedIncrement64(&g_readFailureCount);
+    recordNewSyncReadFailure();
     return;
   }
   const std::int32_t scanCount =
@@ -835,7 +895,7 @@ void captureNewSyncResponse(std::uintptr_t responseAddress, std::uint64_t captur
     if (!readMemory(reinterpret_cast<const void*>(items + static_cast<std::size_t>(index) * sizeof(std::uintptr_t)),
                     &commandAddress, sizeof(commandAddress)) ||
         commandAddress == 0) {
-      InterlockedIncrement64(&g_readFailureCount);
+      recordNewSyncReadFailure();
       break;
     }
     std::uintptr_t commandVtable = 0;
@@ -843,7 +903,7 @@ void captureNewSyncResponse(std::uintptr_t responseAddress, std::uint64_t captur
     if (!readMemory(reinterpret_cast<const void*>(commandAddress), &commandVtable, sizeof(commandVtable)) ||
         commandVtable != g_weixinModuleBase + kWeixinCmdItemVtableRva ||
         !readMemory(reinterpret_cast<const void*>(commandAddress + kCmdItemIdOffset), &commandId, sizeof(commandId))) {
-      InterlockedIncrement64(&g_readFailureCount);
+      recordNewSyncReadFailure();
       continue;
     }
     if (commandId != kWeixinAddMsgCommandId) continue;
@@ -1336,9 +1396,18 @@ std::string hookMetricsMessage(const char* prefix) {
          "; loginAgeMs=" + std::to_string(loginAgeMs) + "; newSyncEntries=" +
          std::to_string(InterlockedCompareExchange64(&g_newSyncEntryCount, 0, 0)) + "; addMsgCommands=" +
          std::to_string(InterlockedCompareExchange64(&g_addMsgCommandCount, 0, 0)) + "; payMessageScans=" +
-         std::to_string(InterlockedCompareExchange64(&g_payMessageScanCount, 0, 0)) + "; payMessages=" +
+         std::to_string(InterlockedCompareExchange64(&g_payMessageScanCount, 0, 0)) + "; addMsgWithoutPayload=" +
+         std::to_string(InterlockedCompareExchange64(&g_addMsgWithoutPayloadCount, 0, 0)) + "; payMessages=" +
          std::to_string(InterlockedCompareExchange64(&g_payMessageCount, 0, 0)) + "; newSyncReturns=" +
-         std::to_string(InterlockedCompareExchange64(&g_newSyncReturnCount, 0, 0)) + "; accountEntries=" +
+         std::to_string(InterlockedCompareExchange64(&g_newSyncReturnCount, 0, 0)) + "; newSyncReadFailures=" +
+         std::to_string(InterlockedCompareExchange64(&g_newSyncReadFailureCount, 0, 0)) + "; payMessageReadFailures=" +
+         std::to_string(InterlockedCompareExchange64(&g_payMessageReadFailureCount, 0, 0)) +
+         "; payMessageObjectReadFailures=" +
+         std::to_string(InterlockedCompareExchange64(&g_payMessageObjectReadFailureCount, 0, 0)) +
+         "; payMessageMetadataFailures=" +
+         std::to_string(InterlockedCompareExchange64(&g_payMessageMetadataFailureCount, 0, 0)) +
+         "; payMessageDataReadFailures=" +
+         std::to_string(InterlockedCompareExchange64(&g_payMessageDataReadFailureCount, 0, 0)) + "; accountEntries=" +
          std::to_string(InterlockedCompareExchange64(&g_accountEntryCount, 0, 0)) + "; accountReturns=" +
          std::to_string(InterlockedCompareExchange64(&g_accountReturnCount, 0, 0)) + "; nicknameEntries=" +
          std::to_string(InterlockedCompareExchange64(&g_nicknameEntryCount, 0, 0)) + "; nicknameReturns=" +
@@ -1775,7 +1844,7 @@ LONG CALLBACK vectoredHandler(PEXCEPTION_POINTERS exception) {
         context->Dr7 &= ~(kSlot1EnableMask | kSlot1ControlMask);
         context->Dr7 |= 0x4;
       } else {
-        InterlockedIncrement64(&g_readFailureCount);
+        recordNewSyncReadFailure();
       }
     }
     handled = true;
@@ -1945,6 +2014,12 @@ DWORD WINAPI bootstrapMain(void*) {
   InterlockedExchange64(&g_nicknameReturnCount, 0);
   InterlockedExchange64(&g_payMessageScanCount, 0);
   InterlockedExchange64(&g_payMessageCount, 0);
+  InterlockedExchange64(&g_addMsgWithoutPayloadCount, 0);
+  InterlockedExchange64(&g_newSyncReadFailureCount, 0);
+  InterlockedExchange64(&g_payMessageReadFailureCount, 0);
+  InterlockedExchange64(&g_payMessageObjectReadFailureCount, 0);
+  InterlockedExchange64(&g_payMessageMetadataFailureCount, 0);
+  InterlockedExchange64(&g_payMessageDataReadFailureCount, 0);
   InterlockedExchange64(&g_readFailureCount, 0);
   InterlockedExchange64(&g_queueDropCount, 0);
 #if defined(CFPAY_DIAGNOSTIC_BUILD) && !defined(CFPAY_WMPF_DIAGNOSTIC_BUILD)
