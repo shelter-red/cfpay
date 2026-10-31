@@ -3237,4 +3237,5 @@
 - 更新前，旧 DLL 清理因部分线程硬件断点无法清除而失败。随后先停止监控端、Hook 宿主及目标微信进程树，确认 5 个微信进程退出，再安装新版；没有覆盖仍被映射的 DLL。
 - 新 EXE 已安装，SHA-256 为 `7df5775342c5d66b931c2c06b8ddfa25080e8d342a4d2d7bbe0f94aed677e5f5`；微信当前加载 DLL SHA-256 为 `9aa0167ff9be1cac4a33bd9ce277cca2e8de181ac904f34750347efdda0069f2`。微信 4.2.0.11 在用户 Session 1 登录成功，昵称 Hook 命中，Worker 接收 `/api/monitor/status` HTTP 200 且状态为 `HEALTHY / HOOK_ACTIVE`。
 - 新指标快照：`newSyncEntries=4`、`newSyncReturns=4`、`addMsgCommands=4`、`payMessageScans=2`、`payMessages=0`、`readFailures=3`、`queueDrops=0`。NewSync Hook 路径已运行；本次没有真实支付，3 次读取失败来源尚不能归因到支付消息解析，需在下一次真实支付观察窗口对比。
+- 持续运行至 04:10:28 再观察：状态保持 `HEALTHY / HOOK_ACTIVE`，NewSync 入口/返回增至 `10/10`、AddMsg 命令 `8`、paymsg 扫描 `5`、支付消息 `0`、读取失败 `6`、队列丢弃 `0`。没有付款样本，因此不能把聚合读取失败归因到收款解析。
 - 真实收款捕获和 Worker 订单匹配仍需要管理员进行一笔真实小额支付验证；未执行付款，不能以 Hook 健康或计数增长替代支付闭环证据。

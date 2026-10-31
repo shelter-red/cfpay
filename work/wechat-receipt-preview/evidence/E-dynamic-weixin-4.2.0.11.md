@@ -22,6 +22,7 @@
 - 新 EXE SHA-256：`7df5775342c5d66b931c2c06b8ddfa25080e8d342a4d2d7bbe0f94aed677e5f5`；当前加载 DLL SHA-256：`9aa0167ff9be1cac4a33bd9ce277cca2e8de181ac904f34750347efdda0069f2`。
 - 登录和昵称 Hook 命中，Worker 接收 HTTP 200 状态上报并显示 `HEALTHY / HOOK_ACTIVE`。新指标快照：NewSync 入口/返回 `4/4`，AddMsg 命令 `4`，paymsg 扫描 `2`，支付消息 `0`，读取失败 `3`，队列丢弃 `0`。
 - 本轮没有真实支付；因此无法判断 3 次读取失败是否与支付消息有关，也未验证金额、收款账号、订单匹配或商户回调。需要管理员下一步执行小额真实支付。
+- 持续观察至 04:10:28，状态仍为 `HEALTHY / HOOK_ACTIVE`；计数增至 NewSync 入口/返回 `10/10`、AddMsg 命令 `8`、paymsg 扫描 `5`、支付消息 `0`、读取失败 `6`、队列丢弃 `0`。这确认同步响应持续经过 4.2 Hook，但没有真实支付样本，不能据此判定收款事件解析正确或失败。
 
 ## Artifacts
 

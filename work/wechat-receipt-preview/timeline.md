@@ -599,3 +599,13 @@
 - decision_delta: [metrics=split_by_stage, old_dll=must_unload_before_replacement, real_payment=owner_required]
 - carry_forward_refs: [evidence/E-static-weixin-4.2.0.11.md, evidence/E-dynamic-weixin-4.2.0.11.md, workitems.md]
 - next: observe an owner-operated real payment and verify parsed fields reach the Worker order flow
+
+## 2026-11-01T04:10:30+08:00 | lead | weixin-4.2.0.11-idle-sync-observation
+- action: continue observing the installed 4.2 hook without initiating a payment
+- command_or_ref: Windows monitor log; Worker `/api/monitor/status`; process/module hash audit
+- result_summary: hook remained HEALTHY/HOOK_ACTIVE; counters advanced to NewSync 10/10, AddMsg 8 and paymsg scans 5, while payment messages and queue drops remained zero; aggregate read failures reached 6 and cannot be attributed without a payment sample
+- artifacts: [evidence/E-dynamic-weixin-4.2.0.11.md, ../../docs/integration-journal.md]
+- evidence_ids: [E-DYNAMIC-WEIXIN-4.2.0.11]
+- decision_delta: [runtime_newsynchronization=confirmed, real_payment_parser_validation=still_required, read_failure_source=unknown]
+- carry_forward_refs: [evidence/E-static-weixin-4.2.0.11.md, evidence/E-dynamic-weixin-4.2.0.11.md, workitems.md]
+- next: administrator performs a real small payment, then verify structured event fields and Worker order matching
