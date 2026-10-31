@@ -32,10 +32,9 @@ constexpr DWORD64 kSlot1ControlMask = static_cast<DWORD64>(0xf) << 20;
 constexpr DWORD64 kSlot2ControlMask = static_cast<DWORD64>(0xf) << 24;
 constexpr DWORD64 kSlot3ControlMask = static_cast<DWORD64>(0xf) << 28;
 constexpr std::uint32_t kWeixinNewSyncParseRva = cfpay::target::kNewSyncParseRva;
-constexpr std::uint32_t kWeixinNewSyncResponseVtableRva = 0x8fc0d48;
-constexpr std::uint32_t kWeixinCmdItemVtableRva = 0x93d3c78;
-constexpr std::uint32_t kWeixinPayloadVtableRva = 0x8e3d058;
-constexpr std::uint32_t kWeixinEmptyStringSentinelRva = 0xb916de0;
+constexpr std::uint32_t kWeixinNewSyncResponseVtableRva = cfpay::target::kNewSyncResponseVtableRva;
+constexpr std::uint32_t kWeixinCmdListVtableRva = cfpay::target::kCmdListVtableRva;
+constexpr std::uint32_t kWeixinCmdItemVtableRva = cfpay::target::kCmdItemVtableRva;
 constexpr std::int32_t kWeixinAddMsgCommandId = 5;
 constexpr std::int32_t kWeixinSysMsgType = 10002;
 constexpr std::size_t kPayContentSize = 2048;
@@ -524,9 +523,8 @@ constexpr std::size_t kMaxCommandsPerResponse = 32;
 constexpr std::uintptr_t kResponseCommandListOffset = 0x08;
 constexpr std::uintptr_t kCommandListItemsOffset = 0x08;
 constexpr std::uintptr_t kCommandListItemCountOffset = 0x10;
-constexpr std::uintptr_t kCmdItemPayloadOffset = 0x08;
+constexpr std::uintptr_t kCmdItemStringObjectOffset = 0x08;
 constexpr std::uintptr_t kCmdItemIdOffset = 0x10;
-constexpr std::uintptr_t kPayloadStringOffset = 0x08;
 constexpr std::uintptr_t kStringSizeOffset = 0x10;
 constexpr std::uintptr_t kStringCapacityOffset = 0x18;
 constexpr std::uint32_t kPayMsgFieldFrom = 2;
@@ -638,17 +636,17 @@ bool nextProtobufField(std::uintptr_t address, std::size_t size, std::size_t* po
   }
 }
 
-// 读取 CmdItem 载荷 std::string 的数据指针与长度（容量 >= 16 时数据在堆上）。
-bool resolvePayloadString(std::uintptr_t payloadObject, std::uintptr_t* dataAddress, std::size_t* length) {
+// 读取 CmdItem 内 std::string 对象的数据指针与长度（容量 >= 16 时数据在堆上）。
+bool resolvePayloadString(std::uintptr_t commandItemAddress, std::uintptr_t* dataAddress, std::size_t* length) {
   std::uintptr_t vtable = 0;
   std::uintptr_t stringObject = 0;
-  if (!readMemory(reinterpret_cast<const void*>(payloadObject), &vtable, sizeof(vtable)) ||
-      vtable != g_weixinModuleBase + kWeixinPayloadVtableRva) {
+  if (!readMemory(reinterpret_cast<const void*>(commandItemAddress), &vtable, sizeof(vtable)) ||
+      vtable != g_weixinModuleBase + kWeixinCmdItemVtableRva) {
     return false;
   }
-  if (!readMemory(reinterpret_cast<const void*>(payloadObject + kPayloadStringOffset), &stringObject,
+  if (!readMemory(reinterpret_cast<const void*>(commandItemAddress + kCmdItemStringObjectOffset), &stringObject,
                   sizeof(stringObject)) ||
-      stringObject == 0 || stringObject == g_weixinModuleBase + kWeixinEmptyStringSentinelRva) {
+      stringObject == 0) {
     return false;
   }
   std::uint64_t size = 0;
@@ -671,10 +669,10 @@ bool resolvePayloadString(std::uintptr_t payloadObject, std::uintptr_t* dataAddr
 
 // 解析 CmdID=5 的消息载荷，按标签名提取 paymsg 的结构化字段（transid、fee、feetype、status、type、timestamp 等）。
 // 只取协议字段，绝不解析“微信支付收款 x 元”这类展示文案；字段缺失或类型不符就整条丢弃。
-void capturePayMessage(std::uintptr_t payloadObject, std::uint64_t capturedAt) {
+void capturePayMessage(std::uintptr_t commandItemAddress, std::uint64_t capturedAt) {
   std::uintptr_t dataAddress = 0;
   std::size_t payloadLength = 0;
-  if (!resolvePayloadString(payloadObject, &dataAddress, &payloadLength)) {
+  if (!resolvePayloadString(commandItemAddress, &dataAddress, &payloadLength)) {
     InterlockedIncrement64(&g_readFailureCount);
     return;
   }
@@ -785,6 +783,12 @@ void captureNewSyncResponse(std::uintptr_t responseAddress, std::uint64_t captur
       commandList == 0) {
     return;
   }
+  std::uintptr_t commandListVtable = 0;
+  if (!readMemory(reinterpret_cast<const void*>(commandList), &commandListVtable, sizeof(commandListVtable)) ||
+      commandListVtable != g_weixinModuleBase + kWeixinCmdListVtableRva) {
+    InterlockedIncrement64(&g_readFailureCount);
+    return;
+  }
   std::int32_t itemCount = 0;
   std::uintptr_t items = 0;
   if (!readMemory(reinterpret_cast<const void*>(commandList + kCommandListItemCountOffset), &itemCount,
@@ -806,20 +810,16 @@ void captureNewSyncResponse(std::uintptr_t responseAddress, std::uint64_t captur
       break;
     }
     std::uintptr_t commandVtable = 0;
-    std::uintptr_t payloadObject = 0;
     std::int32_t commandId = 0;
     if (!readMemory(reinterpret_cast<const void*>(commandAddress), &commandVtable, sizeof(commandVtable)) ||
         commandVtable != g_weixinModuleBase + kWeixinCmdItemVtableRva ||
-        !readMemory(reinterpret_cast<const void*>(commandAddress + kCmdItemIdOffset), &commandId, sizeof(commandId)) ||
-        !readMemory(reinterpret_cast<const void*>(commandAddress + kCmdItemPayloadOffset), &payloadObject,
-                    sizeof(payloadObject)) ||
-        payloadObject == 0) {
+        !readMemory(reinterpret_cast<const void*>(commandAddress + kCmdItemIdOffset), &commandId, sizeof(commandId))) {
       InterlockedIncrement64(&g_readFailureCount);
       continue;
     }
     if (commandId != kWeixinAddMsgCommandId) continue;
     InterlockedIncrement64(&g_receiptEntryCount);
-    capturePayMessage(payloadObject, capturedAt);
+    capturePayMessage(commandAddress, capturedAt);
   }
 }
 #endif

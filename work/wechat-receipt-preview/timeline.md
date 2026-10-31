@@ -559,3 +559,23 @@
 - decision_delta: [distribution=single_exe, dll=embedded_and_extracted, in_place_upgrade=still_forbidden_while_weixin_running, memory_only_injection=not_adopted]
 - carry_forward_refs: [scope.md, ../../docs/integration-journal.md]
 - next: keep the single EXE as the production artifact and re-verify after any observer change
+
+## 2026-11-01T03:15:00+08:00 | cre | weixin-4.2.0.11-static-reverse
+- action: analyze the local Weixin 4.2.0.11 sample and recover NewSync, CmdList, CmdItem, account and nickname targets
+- command_or_ref: Ghidra 12.1.4; InspectWechat42NewSyncChain.java; InspectWechat42KnownHooks.java; Weixin.dll SHA-256 `745cdf2955fa5128cdb00c056c97571156a5f107406a9bb15ac0754f3246b201`
+- result_summary: confirmed NewSync parser RVA `0x10b0230`, response/list/item vtables `0x929f408/0x96d0558/0x96d04d8`, CmdID at item `+0x10`, account getter `0x0e07f70` called by `0x2915c3e`, and unchanged unique nickname signature at `0x4b690`; no runtime or real-payment test was performed
+- artifacts: [../../tools/ghidra/InspectWechat42NewSyncChain.java, ../../tools/ghidra/InspectWechat42KnownHooks.java, evidence/E-static-weixin-4.2.0.11.md]
+- evidence_ids: [E-STATIC-WEIXIN-4.2.0.11]
+- decision_delta: [target_version=4.2.0.11, command_id_offset=0x10, network_write_diagnostic=not_migrated_without_evidence]
+- carry_forward_refs: [scope.md, workitems.md, ../../docs/wechat-native-observer.md]
+- next: build and statically validate the adapted single EXE; wait for owner-operated live/payment verification
+
+## 2026-11-01T03:23:00+08:00 | lead | weixin-4.2.0.11-native-adaptation
+- action: adapt the production observer and single-EXE package to the statically confirmed 4.2 structures
+- command_or_ref: tools/build-single-exe.sh; Weixin.dll sample SHA-256; CMake OBJECT_DEPENDS; focused and full Vitest suites
+- result_summary: production NewSync hook now validates response/list/item vtables and reads CmdItem's string object at +0x08; corrected the capture call to pass the CmdItem itself; EXE self-test and embedded-DLL validation passed after fixing the missing incremental-build dependency; 131 tests and both TypeScript checks passed
+- artifacts: [../../native/wechat-observer/wechat_target.h, ../../native/wechat-observer/hardware_observer.cpp, ../../native/wechat-observer/CMakeLists.txt, ../../docs/wechat-native-observer.md, ../../docs/monitor-protocol.md, evidence/E-static-weixin-4.2.0.11.md]
+- evidence_ids: [E-STATIC-WEIXIN-4.2.0.11]
+- decision_delta: [production_newsync=adapted, cmditem_string_pointer=+0x08, embedded_exe_incremental_dependency=fixed, runtime_hook=not_tested, live_payment=requires_owner]
+- carry_forward_refs: [scope.md, workitems.md, ../../docs/integration-journal.md]
+- next: run Windows host inspection when Windows PowerShell interop is available; then validate naturally received NewSync and owner-operated payment

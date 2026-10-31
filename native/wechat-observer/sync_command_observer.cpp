@@ -25,9 +25,10 @@ constexpr DWORD64 kSlot1EnableMask = 0xc;
 constexpr DWORD64 kSlot1ControlMask = static_cast<DWORD64>(0xf) << 20;
 
 constexpr std::uint32_t kNewSyncParseRva = cfpay::target::kNewSyncParseRva;
-constexpr std::uint32_t kNewSyncResponseVtableRva = 0x8fc0d48;
+constexpr std::uint32_t kNewSyncResponseVtableRva = cfpay::target::kNewSyncResponseVtableRva;
+constexpr std::uint32_t kCmdListVtableRva = cfpay::target::kCmdListVtableRva;
+constexpr std::uint32_t kCmdItemVtableRva = cfpay::target::kCmdItemVtableRva;
 constexpr std::uint32_t kMaxCommandsPerResponse = 32;
-constexpr std::uint32_t kEmptyStringSentinelRva = 0xb916de0;
 constexpr std::uint32_t kPayloadScanSize = 0x140;
 constexpr std::array<std::uint8_t, 32> kNewSyncParseSignature = {
     0x55, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55, 0x41, 0x54, 0x56, 0x57, 0x53, 0x48, 0x83, 0xec, 0x48,
@@ -346,15 +347,15 @@ void scanPayloadObject(std::uintptr_t objectAddress, std::uint64_t sequence, std
     }
   }
 
-  // CmdItem 载荷对象（Ghidra 还原）：+0x00 虚表，+0x08 指向 std::string 对象或空串哨兵，
+  // 4.2 CmdItem 载荷对象（Ghidra 还原）：+0x00 虚表，+0x08 指向 std::string 对象，
   // +0x10 嵌套消息 int32 字段，+0x18 存在位图；std::string 对象内 +0x10 为长度、+0x18 为容量，
-  // 容量 >= 16 时 +0x00 才是真实数据指针。必须多解一层引用才能取到 protobuf 字节。
+  // 容量 >= 16 时 +0x00 才是真实数据指针。
   std::uintptr_t stringObject = 0;
   std::uintptr_t bufferAddress = 0;
   std::uint64_t bufferLength64 = 0;
   std::uint64_t bufferCapacity = 0;
   if (readMemory(reinterpret_cast<const void*>(objectAddress + 0x08), &stringObject, sizeof(stringObject)) &&
-      stringObject > 0x10000 && stringObject != g_moduleBase + kEmptyStringSentinelRva &&
+      stringObject > 0x10000 &&
       readMemory(reinterpret_cast<const void*>(stringObject + 0x10), &bufferLength64, sizeof(bufferLength64)) &&
       readMemory(reinterpret_cast<const void*>(stringObject + 0x18), &bufferCapacity, sizeof(bufferCapacity)) &&
       bufferLength64 > 0 && bufferLength64 <= 65536 && bufferCapacity >= bufferLength64) {
@@ -476,7 +477,8 @@ void dumpResponse(std::uintptr_t responseAddress) {
 
   CommandListLayout commands{};
   if (!readMemory(reinterpret_cast<const void*>(response.commandList), &commands, sizeof(commands)) ||
-      commands.itemCount < 0 || commands.itemCount > 4096 || commands.items == 0) {
+      commands.vtable != g_moduleBase + kCmdListVtableRva || commands.itemCount < 0 ||
+      commands.itemCount > 4096 || commands.items == 0) {
     InterlockedIncrement64(&g_readFailureCount);
     return;
   }
@@ -500,13 +502,13 @@ void dumpResponse(std::uintptr_t responseAddress) {
     record.index = static_cast<std::int32_t>(index);
     std::strncpy(record.kind, "sync_command", sizeof(record.kind) - 1);
     const bool payloadInModule = command.payload >= g_moduleBase && command.payload < g_moduleEnd;
-    std::snprintf(record.detail, sizeof(record.detail), "vtable=%s payload=%s payloadKind=%s presentMask=%u",
+    std::snprintf(record.detail, sizeof(record.detail), "vtable=%s string=%s stringKind=%s presentMask=%u",
                   rvaText(command.vtable).c_str(), rvaText(command.payload).c_str(),
                   command.payload == 0 ? "null" : (payloadInModule ? "module" : "heap"), command.presentMask);
     enqueueRecord(record);
-    if (command.payload != 0 && !payloadInModule) {
+    if (command.vtable == g_moduleBase + kCmdItemVtableRva && command.payload != 0 && !payloadInModule) {
       InterlockedIncrement64(&g_payloadCount);
-      scanPayloadObject(command.payload, sequence, command.commandId);
+      scanPayloadObject(commandAddress, sequence, command.commandId);
     }
   }
 }

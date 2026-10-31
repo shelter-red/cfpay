@@ -132,7 +132,7 @@ const fixtures = {
   "/admin-api/monitors": {
     devices: [{ id: "wm_000000000000000000000000", name: "TC", version: "0.9.0", platform: "windows", last_ip: "1.2.3.4", last_heartbeat_at: Date.now() - 5000 }],
     components: [{ device_id: "wm_000000000000000000000000", component: "wechat_hook", status: "HEALTHY", component_version: "0.9.0",
-      target_version: "Weixin 4.1.15.13", process_id: 4308, hook_offset: "0x106fb10", detail_code: "HOOK_ACTIVE",
+      target_version: "Weixin 4.2.0.11", process_id: 4308, hook_offset: "0x10b0230", detail_code: "HOOK_ACTIVE",
       detail_message: "hardware breakpoint installed", last_event_at: Date.now() - 60000, reported_at: Date.now() - 5000, updated_at: Date.now() - 5000 }],
     wechatLogin: [{ deviceId: "wm_000000000000000000000000", status: "QR_READY", observedAt: Date.now() - 3000,
       expiresAt: Date.now() + 180000, updatedAt: Date.now() - 3000, qrAvailable: true, qrUrl: "/admin-api/wechat-login/wm_000000000000000000000000/qr?v=1" }],
@@ -504,8 +504,8 @@ async function goto(page, path, expectTexts) {
   const monitorVersionText = await page.evaluate(() => document.querySelector("[role='dialog']")?.innerText ?? "");
   results.push({
     case: "监控端版本信息弹窗",
-    ok: ["Windows 监控端版本", "0.9.2", "4.1.15.13", "SHA-256"].every((text) => monitorVersionText.includes(text)),
-    missing: ["Windows 监控端版本", "0.9.2", "4.1.15.13", "SHA-256"].filter((text) => !monitorVersionText.includes(text)),
+    ok: ["Windows 监控端版本", "0.9.2", "4.2.0.11", "SHA-256"].every((text) => monitorVersionText.includes(text)),
+    missing: ["Windows 监控端版本", "0.9.2", "4.2.0.11", "SHA-256"].filter((text) => !monitorVersionText.includes(text)),
   });
   await page.keyboard.press("Escape");
   await page.waitForTimeout(300);

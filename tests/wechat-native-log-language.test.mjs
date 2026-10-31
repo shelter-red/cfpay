@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const monitorSourcePath = new URL("../native/wechat-observer/wechat_monitor.cpp", import.meta.url);
 const observerSourcePath = new URL("../native/wechat-observer/hardware_observer.cpp", import.meta.url);
 const loginAssistantSourcePath = new URL("../native/wechat-observer/wechat_login_assistant.cpp", import.meta.url);
+const nativeBuildPath = new URL("../native/wechat-observer/CMakeLists.txt", import.meta.url);
 
 async function nativeLogCalls() {
   const source = await readFile(monitorSourcePath, "utf8");
@@ -143,14 +144,30 @@ describe("native wechat monitor log language", () => {
     const observer = await readFile(observerSourcePath, "utf8");
     const monitor = await readFile(monitorSourcePath, "utf8");
 
-    expect(target).toContain('kWeixinVersion[] = L"4.1.15.13"');
-    expect(target).toContain("kNewSyncParseRva = 0x106fb10");
+    expect(target).toContain('kWeixinVersion[] = L"4.2.0.11"');
+    expect(target).toContain("kNewSyncParseRva = 0x10b0230");
     expect(host).toContain("cfpay::target::kWeixinVersion");
-    expect(host).not.toContain('L"4.1.15.13"');
+    expect(host).not.toContain('L"4.2.0.11"');
     expect(observer).toContain("cfpay::target::kNewSyncParseRva");
-    expect(observer).not.toContain("= 0x106fb10");
+    expect(observer).not.toContain("= 0x10b0230");
     expect(monitor).toContain('payload["targetVersion"] = weixinTargetLabel();');
     expect(monitor).toContain('payload["hookOffset"] = parserHookOffsetText();');
+  });
+
+  it("reads the 4.2 CmdItem string from the command object", async () => {
+    const observer = await readFile(observerSourcePath, "utf8");
+
+    expect(observer).toContain("kCmdItemStringObjectOffset = 0x08");
+    expect(observer).toContain("kCmdItemIdOffset = 0x10");
+    expect(observer).toContain("resolvePayloadString(commandItemAddress");
+    expect(observer).toContain("capturePayMessage(commandAddress, capturedAt);");
+    expect(observer).not.toContain("capturePayMessage(payloadObject");
+  });
+
+  it("rebuilds the single EXE when the embedded observer DLL changes", async () => {
+    const build = await readFile(nativeBuildPath, "utf8");
+
+    expect(build).toContain("OBJECT_DEPENDS \"${CMAKE_CURRENT_BINARY_DIR}/cfpay-hook-observer.dll\"");
   });
 
   it("reports device and component state through a single 5-second cadence", async () => {

@@ -18,6 +18,7 @@
 #include "nlohmann/json.hpp"
 #include "wechat_embedded.h"
 #include "wechat_monitor_version.h"
+#include "wechat_target.h"
 
 namespace {
 
@@ -405,7 +406,7 @@ std::wstring chooseWeixinExecutable(HWND owner, HRESULT* error) {
 std::wstring inferWeixinDll(const std::wstring& executablePath) {
   const std::wstring directory = parentDirectory(executablePath);
   const std::array<std::wstring, 2> directCandidates = {
-      joinPath(joinPath(directory, L"4.1.15.13"), L"Weixin.dll"), joinPath(directory, L"Weixin.dll")};
+      joinPath(joinPath(directory, cfpay::target::kWeixinVersion), L"Weixin.dll"), joinPath(directory, L"Weixin.dll")};
   for (const auto& candidate : directCandidates) {
     if (fileExists(candidate)) return candidate;
   }
@@ -648,7 +649,7 @@ bool validateTarget(bool showMessage) {
   if (!runProcess(monitorPath, {L"--internal-host", L"--inspect-weixin", dllPath}, &exitCode, &processOutput) ||
       exitCode != 0) {
     if (showMessage) MessageBoxW(gState.window, L"微信目标不受支持或文件校验失败。", L"目标校验失败", MB_OK | MB_ICONERROR);
-    setStatus(L"微信目标校验失败：版本、SHA-256 或函数签名不匹配，仅支持 4.1.15.13", true);
+    setStatus(L"微信目标校验失败：版本、SHA-256 或函数签名不匹配，仅支持 4.2.0.11", true);
     gState.targetValidated = false;
     return false;
   }

@@ -82,6 +82,8 @@ target_link_libraries(cfpay-wechat-monitor PRIVATE bcrypt comctl32 gdi32 ole32 q
 
 # 单 EXE 分发：把生产观察 DLL 嵌入监控端可执行文件
 add_dependencies(cfpay-wechat-monitor cfpay-hook-observer)
+set_source_files_properties(wechat_monitor.cpp PROPERTIES
+  OBJECT_DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/cfpay-hook-observer.dll")
 target_compile_definitions(cfpay-wechat-monitor PRIVATE
   CFPAY_EMBED_OBSERVER_DLL
   "CFPAY_OBSERVER_DLL_FILE=\"$<TARGET_FILE:cfpay-hook-observer>\"")

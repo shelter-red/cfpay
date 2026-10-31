@@ -29,9 +29,9 @@ constexpr std::uint32_t kAccountRva = cfpay::target::kAccountRva;
 constexpr std::uint32_t kAccountCallsiteRva = cfpay::target::kAccountCallsiteRva;
 constexpr std::uint32_t kNicknameRva = cfpay::target::kNicknameRva;
 constexpr DWORD kObserverApiVersion = 0x000a0000;
-constexpr std::uint64_t kParserFileOffset = 0x106ef10;
-constexpr std::uint64_t kAccountFileOffset = 0x0dbfcd0;
-constexpr std::uint64_t kAccountCallsiteFileOffset = 0x291416f;
+constexpr std::uint64_t kParserFileOffset = 0x10af630;
+constexpr std::uint64_t kAccountFileOffset = 0x0e07370;
+constexpr std::uint64_t kAccountCallsiteFileOffset = 0x291503e;
 constexpr std::uint64_t kNicknameFileOffset = 0x004aa90;
 constexpr std::array<std::uint64_t, 4> kWmpfCandidateFileOffsets = {
     0x2d16df0, 0x2d21500, 0x2d4aec0, 0x2d59800};
@@ -43,7 +43,7 @@ constexpr std::array<std::uint8_t, 32> kAccountSignature = {
     0x55, 0x56, 0x57, 0x53, 0x48, 0x81, 0xec, 0xd8, 0x00, 0x00, 0x00, 0x48, 0x8d, 0xac, 0x24, 0x80,
     0x00, 0x00, 0x00, 0x48, 0xc7, 0x45, 0x50, 0xfe, 0xff, 0xff, 0xff, 0x48, 0x89, 0xd6, 0x48, 0x89,
 };
-constexpr std::array<std::uint8_t, 5> kAccountCallsiteSignature = {0xe8, 0x5c, 0xbb, 0x4a, 0xfe};
+constexpr std::array<std::uint8_t, 5> kAccountCallsiteSignature = {0xe8, 0x2d, 0x23, 0x4f, 0xfe};
 constexpr std::array<std::uint8_t, 32> kNicknameSignature = {
     0x55, 0x41, 0x57, 0x41, 0x56, 0x41, 0x54, 0x56, 0x57, 0x53, 0x48, 0x83, 0xec, 0x50, 0x48, 0x8d,
     0x6c, 0x24, 0x50, 0x48, 0xc7, 0x45, 0xf8, 0xfe, 0xff, 0xff, 0xff, 0x48, 0x83, 0x7a, 0x38, 0x00,
@@ -274,7 +274,7 @@ bool inspectWeixinFile(const wchar_t* path, std::string* detailCode, std::string
   std::wstring version;
   if (!getFileVersion(path, &version) || version != kExpectedVersion) {
     *detailCode = "VERSION_MISMATCH";
-    *message = "Weixin.dll version is not 4.1.15.13";
+    *message = "Weixin.dll version does not match the supported target";
     return false;
   }
 

@@ -15,22 +15,25 @@
 namespace cfpay::target {
 
 // 版本号文本，与 Weixin.dll 的文件版本资源一致。
-inline constexpr wchar_t kWeixinVersion[] = L"4.1.15.13";
+inline constexpr wchar_t kWeixinVersion[] = L"4.2.0.11";
 
 // 磁盘文件指纹：大小 + SHA-256，安装前逐项校验，任一不符即拒绝注入并上报 UNSUPPORTED。
-inline constexpr std::uint64_t kWeixinFileSize = 201552944;
-inline constexpr char kWeixinSha256[] = "10f8e995453e2da46d4f2b5080cd6da1f13cc5147746adc119ceae38cb039de5";
+inline constexpr std::uint64_t kWeixinFileSize = 205929008;
+inline constexpr char kWeixinSha256[] = "745cdf2955fa5128cdb00c056c97571156a5f107406a9bb15ac0754f3246b201";
 
 // 小程序渲染进程 flue.dll 的指纹，仅诊断构建使用。
 inline constexpr std::uint64_t kWmpfFileSize = 237162032;
 inline constexpr char kWmpfSha256[] = "5baf4a84a41036ce5b2ef897d85029bde9ee9965b4a69d4f5b594672821cad56";
 
 // micromsg.NewSyncResponse 的 Protobuf 解析入口：收款通知的结构化数据来源。
-inline constexpr std::uint32_t kNewSyncParseRva = 0x106fb10;
+inline constexpr std::uint32_t kNewSyncParseRva = 0x10b0230;
+inline constexpr std::uint32_t kNewSyncResponseVtableRva = 0x929f408;
+inline constexpr std::uint32_t kCmdListVtableRva = 0x96d0558;
+inline constexpr std::uint32_t kCmdItemVtableRva = 0x96d04d8;
 
 // 当前登录账号（wxid、登录状态）读取入口，以及校验它归属的调用点。
-inline constexpr std::uint32_t kAccountRva = 0x0dc08d0;
-inline constexpr std::uint32_t kAccountCallsiteRva = 0x2914d6f;
+inline constexpr std::uint32_t kAccountRva = 0x0e07f70;
+inline constexpr std::uint32_t kAccountCallsiteRva = 0x2915c3e;
 
 // 当前账号昵称读取入口。
 inline constexpr std::uint32_t kNicknameRva = 0x004b690;

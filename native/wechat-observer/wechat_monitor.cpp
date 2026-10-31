@@ -2620,8 +2620,8 @@ int runSelfTest() {
   }
   // 上报的目标版本与 Hook 偏移必须由 wechat_target.h 派生，格式与历史上报值保持一致，
   // 否则后台按字符串比对的展示与既有记录会对不上。
-  if (weixinTargetLabel() != "Weixin 4.1.15.13") return 25;
-  if (parserHookOffsetText() != "0x106fb10") return 26;
+  if (weixinTargetLabel() != "Weixin 4.2.0.11") return 25;
+  if (parserHookOffsetText() != "0x10b0230") return 26;
   // 合并上报的载荷必须同时带上组件状态与微信登录状态：两者共用一个请求，
   // 少一块后台就会出现「设备在线但没有登录状态」这类自相矛盾的记录。
   ReportSnapshot merged;

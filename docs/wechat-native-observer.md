@@ -43,24 +43,27 @@
 当前只支持以下目标：
 
 ```text
-微信版本：4.1.15.13
+微信版本：4.2.0.11
 模块：Weixin.dll
-文件大小：201552944
-SHA-256：10f8e995453e2da46d4f2b5080cd6da1f13cc5147746adc119ceae38cb039de5
+文件大小：205929008
+SHA-256：745cdf2955fa5128cdb00c056c97571156a5f107406a9bb15ac0754f3246b201
 映像基址：0x180000000
-收款观察入口 RVA：0x106fb10（NewSyncResponse 解析函数）
-收款观察入口文件偏移：0x106ef10
+收款观察入口 RVA：0x10b0230（NewSyncResponse 解析函数）
+收款观察入口文件偏移：0x10af630
 收款观察入口前 32 字节：55415741564155415657534883ec48488d6c2440 48c74500feffffff4889d6（连续 32 字节，见源码常量）
-响应对象虚表 RVA：0x8fc0d48
-命令对象 micromsg.CmdItem 虚表 RVA：0x93d3c78
-载荷对象虚表 RVA：0x8e3d058
-空字符串哨兵 RVA：0xb916de0
-账号资料函数 RVA：0x0dc08d0
-账号资料函数文件偏移：0x0dbfcd0
+响应对象虚表 RVA：0x929f408
+命令列表虚表 RVA：0x96d0558
+命令对象 micromsg.CmdItem 虚表 RVA：0x96d04d8
+账号资料函数 RVA：0x0e07f70
+账号资料函数文件偏移：0x0e07370
 账号资料入口前 32 字节：555657534881ecd8000000488dac248000000048c74550feffffff4889d64889
-账号资料调用点 RVA：0x2914d6f
-账号资料调用指令：e85cbb4afe
-账号资料调用目标：0x0dc08d0
+账号资料调用点 RVA：0x2915c3e
+账号资料调用指令：e82d234ffe
+账号资料调用目标：0x0e07f70
+昵称资料入口 RVA：0x004b690，32 字节签名仍唯一命中。
+昵称资料入口文件偏移：0x004aa90
+
+4.2 类层级与 4.1 不同：`0x96d0558` 是命令列表解析器，`0x96d04d8` 是命令子项解析器；子项 `CmdID` 仍位于 `+0x10`，`+0x08` 指向字符串对象。此前把列表字段标成 CmdItem 的判断已更正。
 ```
 
 任一条件不匹配时，不安装观察点，上报 `UNSUPPORTED / VERSION_MISMATCH` 或 `UNSUPPORTED / SIGNATURE_MISMATCH`。
@@ -69,9 +72,9 @@ SHA-256：10f8e995453e2da46d4f2b5080cd6da1f13cc5147746adc119ceae38cb039de5
 
 生产收款链路读取微信自身已解包的 `paymsg` 结构化支付通知，不再使用展示文案，也不再使用旧的 `wcpayinfo` 反序列化器 `0x2293980` 或会话记录追加函数 `0x490d5c0`：
 
-- `DR0` 挂在 `NewSyncResponse` 解析入口 `0x106fb10`，`DR1` 按线程挂在真实返回地址；返回后校验响应对象虚表 `+0x8fc0d48`。
-- 响应对象 `+0x08` 是命令列表：`+0x08` 为命令指针数组、`+0x10` 为命令数量；每个 `micromsg.CmdItem` 为 `0x20` 字节，`+0x08` 是载荷对象、`+0x10` 是 `CmdID`、`+0x18` 是存在位图。
-- 载荷对象 `0x20` 字节：`+0x00` 虚表 `+0x8e3d058`，`+0x08` 指向 `std::string`（或空串哨兵 `+0xb916de0`），字符串对象 `+0x10` 为长度、`+0x18` 为容量，容量不小于 16 时 `+0x00` 才是数据指针。
+- `DR0` 挂在 `NewSyncResponse` 解析入口 `0x10b0230`，`DR1` 按线程挂在真实返回地址；返回后校验响应对象虚表 `+0x929f408`。
+- 响应对象 `+0x08` 指向命令列表对象；列表 `+0x00` 虚表为 `0x96d0558`，`+0x08` 为命令指针数组、`+0x10` 为命令数量、`+0x20` 为协议声明数量、`+0x28` 为存在位图。
+- 每个 `micromsg.CmdItem` 为 `0x20` 字节，虚表为 `0x96d04d8`，`+0x08` 指向 `std::string` 对象、`+0x10` 是 `CmdID`、`+0x18` 是存在位图；字符串对象 `+0x10` 为长度、`+0x18` 为容量，容量不小于 16 时 `+0x00` 才是数据指针。
 - 载荷字节按 protobuf 线格式读取：`field2/3` 为收付双方，`field4` 为消息类型（`10002` 即 `sysmsg`），`field5.1` 为内容体，`field9` 为创建时间（Unix 秒），`field12` 为服务端消息号。
 - 内容体是 `<sysmsg type="paymsg">` 协议文本，监控端按标签名取值：`PayMsgType`、`transid`、`username`、`displayname`、`timestamp`、`fee`（整数分）、`feetype`、`type`、`scene`、`status`、`outtradeno`。
 - 判定条件全部来自协议字段：`msgType=10002`、`status=1`、`fee>0`、`feetype=1`、`type` 等于配置的 `wechatPayTypeFilter`（默认 `wx_f2f`）、消息 `toUsername` 等于本机已确认收款账号；`transid` 缺失即拒绝。
@@ -207,7 +210,7 @@ cfpay-wechat-monitor.exe --internal-host --stop-weixin <pid>
 
 `--inspect-weixin` 从 Windows 侧验证：
 
-- 文件版本必须为 `4.1.15.13`。
+- 文件版本必须为 `4.2.0.11`。
 - 文件大小和 SHA-256 必须与已分析样本一致。
 - 解析器入口前 32 字节必须匹配。
 - 唯一调用点 5 字节必须匹配，且 `CALL rel32` 必须解析回目标 RVA。
@@ -350,7 +353,7 @@ node tools/mock-monitor-server.mjs \
 
 ## 版本化发布工件
 
-`tools/build-single-exe.sh` 除固定名 `dist/single-exe/cfpay-wechat-monitor.exe` 外，还产出按版本命名的发布工件 `cfpay-wechat-monitor-<监控端版本>-weixin-<微信版本>-win64.exe`，例如 `cfpay-wechat-monitor-0.9.2-weixin-4.1.15.13-win64.exe`。文件名里的监控端版本取自 `wechat_monitor_version.h` 的 `kVersion`，微信版本取自 `wechat_target.h` 的 `kWeixinVersion`，也就是观察器唯一通过静态校验的目标版本，避免把 EXE 部署到不受支持的微信上。
+`tools/build-single-exe.sh` 除固定名 `dist/single-exe/cfpay-wechat-monitor.exe` 外，还产出按版本命名的发布工件 `cfpay-wechat-monitor-<监控端版本>-weixin-<微信版本>-win64.exe`，当前微信目标为 `4.2.0.11`。文件名里的监控端版本取自 `wechat_monitor_version.h` 的 `kVersion`，微信版本取自 `wechat_target.h` 的 `kWeixinVersion`，也就是观察器唯一通过静态校验的目标版本，避免把 EXE 部署到不受支持的微信上。
 
 版本号以 C++ 头文件为唯一来源：监控端版本读 `wechat_monitor_version.h` 的 `kVersion`，微信版本读 `wechat_target.h` 的 `kWeixinVersion`，`--version` 与 `--weixin-version` 只用于临时覆盖。脚本每次构建还会清理输出目录里上一版的版本化工件，避免升版本时堆积旧 EXE。同目录还产出 `BUILD_INFO`（版本、观察器 API 版本、EXE 与内嵌 DLL 的 SHA-256、编译器、构建时间、提交号与工作区是否 dirty）和 `SHA256SUMS`（两个 EXE 的校验和）。
 
@@ -376,7 +379,7 @@ cfpay-wechat-monitor.exe --internal-host --run-weixin-network-diagnostic <pid> <
 cfpay-wechat-monitor.exe --internal-host --stop-weixin-network-diagnostic <pid>
 ```
 
-该诊断只支持固定版本 `Weixin.dll`，当前网络入口为 `micromsg.NewSyncResponse` 的 Protobuf 解析函数 `Weixin.dll+0x106fb10`，不是旧记录中的 `+0x106eb90`。响应解析返回采样点为 `+0x680fcc`；`CmdID=5` 的 `micromsg.AddMsg` 解析入口为 `+0x1072ab0`。诊断不会读取原始网络缓冲区、正文、金额、账号或交易标识，只读取已解包对象的结构元数据：NewSync 的返回状态、命令数量和命令 ID，以及 AddMsg 的消息类型和存在位图。
+网络写入来源诊断的返回点与 AddMsg 解析入口尚未针对 4.2.0.11 验证，本次不将其纳入支持目标；本次只迁移已确认的生产 NewSync 解析路径。
 
 诊断从异常 `CONTEXT` 使用 `RtlLookupFunctionEntry` 和 `RtlVirtualUnwind` 最多展开 `32` 层，并保留最多 `16` 个位于 `Weixin.dll` 内的模块相对返回地址。事件类型为 `newsync_response_parse` 或 `addmsg_parse`，输出序号、解析次数、线程 ID、`callerRva`、`callChainRvas`、展开层数、完成状态和上述结构元数据；不输出模块基址、模块外地址、原始栈内存、聊天正文、金额、摘要、账号或交易标识。首次解析命中前每 `25ms` 补充覆盖新建线程，命中后恢复为 `250ms`；健康状态每 `5` 秒发送一次，避免连续重复上报。
 
@@ -391,7 +394,7 @@ cfpay-wechat-monitor.exe --internal-host --stop-weixin-network-diagnostic <pid>
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\verify-windows-wechat-single-exe.ps1 `
   -PackageDirectory dist\windows-wechat-monitor `
-  -WeixinDllPath "D:\Program Files\Tencent\Weixin\4.1.15.13\Weixin.dll" `
+  -WeixinDllPath "D:\Program Files\Tencent\Weixin\4.2.0.11\Weixin.dll" `
   -VerifyUi
 ```
 

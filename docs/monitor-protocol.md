@@ -37,9 +37,9 @@ POST /api/monitor/status
   "version": "0.9.2",
   "component": "wechat_hook",
   "status": "DEGRADED",
-  "targetVersion": "Weixin 4.1.15.13",
+  "targetVersion": "Weixin 4.2.0.11",
   "processId": 4308,
-  "hookOffset": "0x106fb10",
+  "hookOffset": "0x10b0230",
   "detailCode": "WEIXIN_LOGIN_REQUIRED",
   "message": "未检测到已登录的微信账号",
   "observedAt": 1790617183000,
@@ -76,11 +76,11 @@ POST /api/monitor/status
   "component": "wechat_hook",
   "status": "HEALTHY",
   "version": "0.2.0",
-  "targetVersion": "Weixin 4.1.15.13",
+  "targetVersion": "Weixin 4.2.0.11",
   "processId": 4308,
-  "hookOffset": "0x106fb10",
+  "hookOffset": "0x10b0230",
   "detailCode": "HOOK_ACTIVE",
-  "message": "hardware breakpoint installed",
+  "message": "Hook 已安装并通过自检",
   "lastEventAt": 1790500000000,
   "observedAt": 1790500030000
 }
@@ -93,9 +93,9 @@ POST /api/monitor/status
   "component": "wechat_hook",
   "status": "STOPPED",
   "version": "0.2.0",
-  "targetVersion": "Weixin 4.1.15.13",
+  "targetVersion": "Weixin 4.2.0.11",
   "detailCode": "PROCESS_NOT_FOUND",
-  "message": "Weixin process is not running",
+  "message": "未检测到正在运行的微信主程序",
   "observedAt": 1790500030000
 }
 ```

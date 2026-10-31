@@ -9,7 +9,7 @@
 - primary_id: R22
 - lead_role: lead
 - specialist_roles: [cre]
-- hint: 使用Ghidra逆向固定版Weixin.dll，定位不依赖打开收款助手会话的收款金额会话列表摘要显示前结构化绑定链
+- hint: 使用Ghidra逆向本机Weixin.dll 4.2.0.11，重新适配NewSync解包后结构化收款Hook
 - preset: offline-sample
 
 ## auth
@@ -20,7 +20,7 @@
 
 ## in_scope
 - assets:
-  - /mnt/d/Program Files/Tencent/Weixin/4.1.15.13/Weixin.dll
+  - /mnt/d/Program Files/Tencent/Weixin/4.2.0.11/Weixin.dll
 - surfaces: [binary, process_memory, ui_binding]
 - activities: [reverse, hook_validate, report]
 

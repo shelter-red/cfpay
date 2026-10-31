@@ -43,7 +43,7 @@
 
 ```text
 微信客户端收到到账通知
-  → NewSync 响应解析（Weixin.dll + 0x106fb10，DR0 入口 / DR1 返回采样）
+  → NewSync 响应解析（Weixin.dll + 0x10b0230，DR0 入口 / DR1 返回采样）
   → CmdItem(cmdid=5) 载荷 protobuf → paymsg 结构化字段
   → 观察 DLL 通过命名管道输出 JSON（只转发结构化字段）
   → 监控端 EXE 校验并生成事件（eventId = sha256(transid)）
@@ -195,24 +195,23 @@ GitHub Actions 部署（`.github/workflows/deploy.yml`）只需要 Secret `CLOUD
 
 ### 8.2 微信
 
-目标固定为 **Weixin 4.1.15.13**（`Weixin.dll` 大小 201,552,944，SHA-256 `10f8e995453e2da46d4f2b5080cd6da1f13cc5147746adc119ceae38cb039de5`）。磁盘文件与进程内存都会二次校验版本、SHA-256 与函数签名字节，任何一项不符即拒绝安装并上报 `UNSUPPORTED`。
+目标固定为 **Weixin 4.2.0.11**（`Weixin.dll` 大小 205,929,008，SHA-256 `745cdf2955fa5128cdb00c056c97571156a5f107406a9bb15ac0754f3246b201`）。磁盘文件与进程内存都会二次校验版本、SHA-256 与函数签名字节，任何一项不符即拒绝安装并上报 `UNSUPPORTED`。
 
 观察点（硬件断点，不修改微信代码页）：
 
 | 槽位 | 地址 | 用途 |
 | --- | --- | --- |
-| DR0 | `Weixin.dll + 0x106fb10` | `NewSyncResponse` 解析入口 |
+| DR0 | `Weixin.dll + 0x10b0230` | `NewSyncResponse` 解析入口 |
 | DR1 | 入口栈顶返回地址（按线程动态） | 解析返回后读取已解包响应对象 |
-| DR2 | `Weixin.dll + 0x0dc08d0` | 当前登录账号（`wxid`、登录状态） |
+| DR2 | `Weixin.dll + 0x0e07f70` | 当前登录账号（`wxid`、登录状态） |
 | DR3 | `Weixin.dll + 0x004b690` | 当前账号昵称 |
 
 已还原的对象布局：
 
 ```text
-NewSyncResponse   +0x00 虚表(0x8fc0d48)  +0x08 命令列表  +0x30 存在位图
-命令列表          +0x08 命令指针数组     +0x10 命令数量
-micromsg.CmdItem  +0x00 虚表(0x93d3c78)  +0x08 载荷对象  +0x10 CmdID  +0x18 存在位图   (0x20 字节)
-载荷对象          +0x00 虚表(0x8e3d058)  +0x08 std::string(或空串哨兵 0xb916de0)       (0x20 字节)
+NewSyncResponse   +0x00 虚表(0x929f408)  +0x08 命令列表
+命令列表          +0x00 虚表(0x96d0558)  +0x08 子项数组     +0x10 子项数量 +0x20 声明数量 +0x28 存在位图
+micromsg.CmdItem  +0x00 虚表(0x96d04d8)  +0x08 std::string* +0x10 CmdID  +0x18 存在位图   (0x20 字节)
 std::string       +0x00 数据指针(容量≥16) +0x10 长度      +0x18 容量
 ```
 
@@ -273,7 +272,7 @@ std::string       +0x00 数据指针(容量≥16) +0x10 长度      +0x18 容量
 
 EXE 只导入 Windows 系统 DLL（`kernel32`、`user32`、`gdi32`、`shell32`、`ole32`、`comctl32`、`version`、`winhttp`、`bcrypt`、`msvcrt`），运行库静态链接，不需要 Node、PowerShell 或任何常驻依赖。
 
-发布到 GitHub Release 页时，同一个 EXE 会按支持的微信版本重命名为 `cfpay-wechat-monitor-<监控端版本>-weixin-<微信版本>-win64.exe`（当前为 `cfpay-wechat-monitor-0.9.0-weixin-4.1.15.13-win64.exe`），字节内容与固定名副本完全一致；文件名里的微信版本就是观察器唯一通过静态校验的目标版本，详见 10.1。
+发布到 GitHub Release 页时，同一个 EXE 会按支持的微信版本重命名为 `cfpay-wechat-monitor-<监控端版本>-weixin-<微信版本>-win64.exe`（当前目标为 `Weixin 4.2.0.11`），字节内容与固定名副本完全一致；文件名里的微信版本就是观察器唯一通过静态校验的目标版本，详见 10.1。
 
 > 构建不可逐字节复现：PE 时间戳每次不同，因此每次新构建的 DLL 哈希都会变化，升级时必须先退出微信。
 
@@ -341,7 +340,7 @@ bash tools/build-single-exe.sh --output /path/to/dist --jobs 8
 | 产物 | 说明 |
 | --- | --- |
 | `dist/single-exe/cfpay-wechat-monitor.exe` | 固定名副本，供本机部署与安装脚本使用 |
-| `dist/single-exe/cfpay-wechat-monitor-<监控端版本>-weixin-<微信版本>-win64.exe` | 发布工件，例如 `cfpay-wechat-monitor-0.9.0-weixin-4.1.15.13-win64.exe` |
+| `dist/single-exe/cfpay-wechat-monitor-<监控端版本>-weixin-<微信版本>-win64.exe` | 发布工件，例如 `cfpay-wechat-monitor-0.9.0-weixin-4.2.0.11-win64.exe` |
 | `dist/single-exe/BUILD_INFO` | 版本、观察器 API 版本、EXE 与内嵌 DLL 的 SHA-256、编译器、构建时间与提交号 |
 | `dist/single-exe/SHA256SUMS` | 两个 EXE 的校验和清单，`sha256sum -c SHA256SUMS` 验证 |
 
@@ -487,7 +486,7 @@ node tools/verify-wechat-hook-harness.mjs <output.jsonl>      # 校验自有测�
 
 真实收款验证流程：
 
-1. 后台确认监控端在线且组件为 `HEALTHY / HOOK_ACTIVE`、`hookOffset=0x106fb10`。
+1. 后台确认监控端在线且组件为 `HEALTHY / HOOK_ACTIVE`、`hookOffset=0x10b0230`。
 2. 用 `mapi.php` 创建一笔小额订单并打开支付页。
 3. 完成支付后检查：监控端日志出现「支付通知已入队」，订单变为 `PAID`，`api.php?act=order` 返回 `status=1`。
 4. 在订单列表点「详情」，核对结构化字段与上报 JSON。
@@ -512,7 +511,7 @@ node tools/verify-wechat-hook-harness.mjs <output.jsonl>      # 校验自有测�
 
 ## 15. 已知边界
 
-- 微信侧只支持固定版本 4.1.15.13；微信更新后需要重新逆向并更新签名常量。
+- 微信侧只支持固定版本 4.2.0.11；微信更新后需要重新逆向并更新签名常量。
 - 观察 DLL 以文件形式释放后由 `LoadLibraryW` 注入，运行目录会出现该 DLL；若要求磁盘不落 DLL，需改为反射式注入并重写已加载模块哈希校验。
 - 收款到账依赖微信客户端在线并接收通知；客户端离线期间的到账不会补抓。
 - 尾差匹配只在同渠道、同基础金额、订单有效期内生效。
