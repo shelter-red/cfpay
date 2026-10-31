@@ -7,8 +7,8 @@
 | WI-003 | Locate global session preview binding | cre | Weixin.dll | binary | completed | E-STATIC-001 | ChatSessionCellViewModel binding and digest field identified |
 | WI-004 | Validate session digest path dynamically | cre | Weixin.exe | process_memory | in_progress | E-DYNAMIC-001 | Fresh receipt validates the binding; expanded model and rich-text shape diagnostic is ready for restored-session validation |
 | WI-005 | Reverse Weixin 4.2.0.11 NewSync structures | cre | Weixin.dll | binary | completed | E-STATIC-WEIXIN-4.2.0.11 | Confirmed response, command-list and CmdItem parsers, vtables, fields, account getter and nickname signature |
-| WI-006 | Adapt native observer to 4.2.0.11 | lead | C++ monitor | source | completed | E-STATIC-WEIXIN-4.2.0.11 | Single EXE built and self-tested; sample hash and parser/account/nickname signatures match; Windows host inspection could not run because powershell.exe is unavailable in this WSL session |
-| WI-007 | Validate live NewSync and payment path | lead | Weixin.exe | process_memory | pending | — | Requires running the updated monitor; real payment closure waits for owner-operated payment |
+| WI-006 | Adapt native observer to 4.2.0.11 | lead | C++ monitor | source | completed | E-STATIC-WEIXIN-4.2.0.11, E-DYNAMIC-WEIXIN-4.2.0.11 | Single EXE built; Windows runtime reached HEALTHY / HOOK_ACTIVE after aligning the 4.2 account callsite signature |
+| WI-007 | Validate live NewSync and payment path | lead | Weixin.exe | process_memory | in_progress | E-DYNAMIC-WEIXIN-4.2.0.11 | NewSync parser and paymsg scan counters advanced; a real payment is still required to confirm structured receipt capture |
 
 ## Coverage
 - [x] Triage complete for in_scope sample

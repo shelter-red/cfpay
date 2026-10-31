@@ -1074,6 +1074,21 @@ std::string observerMessageDescription(const std::string& detailCode, const std:
       {"Weixin NewSync parser or account signature does not match", u8"\u5fae\u4fe1 NewSync \u89e3\u6790\u51fd\u6570\u6216\u8d26\u53f7\u51fd\u6570\u7b7e\u540d\u4e0d\u5339\u914d"},
       {"diagnostic candidate memory signature does not match", u8"\u8bca\u65ad\u5019\u9009\u5730\u5740\u7684\u5185\u5b58\u7b7e\u540d\u4e0d\u5339\u914d"},
       {"hardware breakpoint installation failed", u8"\u786c\u4ef6\u65ad\u70b9\u5b89\u88c5\u5931\u8d25"},
+      {"production named pipe creation failed", u8"Hook \u72b6\u6001\u7ba1\u9053\u521b\u5efa\u5931\u8d25"},
+      {"observer DLL did not connect to production named pipe", u8"\u5fae\u4fe1\u8fdb\u7a0b\u5185\u89c2\u5bdf\u5668\u672a\u8fde\u63a5\u72b6\u6001\u7ba1\u9053"},
+      {"named pipe read failed", u8"\u89c2\u5bdf\u5668\u72b6\u6001\u7ba1\u9053\u8bfb\u53d6\u5931\u8d25"},
+      {"named pipe produced no output", u8"\u89c2\u5bdf\u5668\u672a\u8f93\u51fa\u542f\u52a8\u72b6\u6001"},
+      {"target process could not be opened for observer lifecycle call",
+       u8"\u65e0\u6cd5\u6253\u5f00\u5fae\u4fe1\u8fdb\u7a0b\u4ee5\u63a7\u5236\u89c2\u5bdf\u5668"},
+      {"observer lifecycle export was not found", u8"\u89c2\u5bdf\u5668\u751f\u547d\u5468\u671f\u51fd\u6570\u672a\u627e\u5230"},
+      {"observer DLL is loaded but could not be reactivated", u8"\u5df2\u52a0\u8f7d\u7684\u89c2\u5bdf\u5668\u65e0\u6cd5\u91cd\u65b0\u542f\u52a8"},
+      {"loaded observer runtime API version does not match the current package",
+       u8"\u5df2\u52a0\u8f7d\u7684\u89c2\u5bdf\u5668\u7248\u672c\u4e0e\u5f53\u524d\u76d1\u63a7\u7aef\u4e0d\u4e00\u81f4"},
+      {"observer DLL path is invalid", u8"\u89c2\u5bdf\u5668 DLL \u8def\u5f84\u65e0\u6548"},
+      {"loaded observer DLL does not match the current package",
+       u8"\u5fae\u4fe1\u8fdb\u7a0b\u5185\u7684\u89c2\u5bdf\u5668\u4e0e\u5f53\u524d\u7a0b\u5e8f\u6587\u4ef6\u4e0d\u4e00\u81f4"},
+      {"observer hardware breakpoints and exception handler were cleared",
+       u8"\u89c2\u5bdf\u5668\u786c\u4ef6\u65ad\u70b9\u4e0e\u5f02\u5e38\u5904\u7406\u5668\u5df2\u6e05\u7406"},
       {"observer worker thread creation failed", u8"\u89c2\u5bdf\u5668\u5de5\u4f5c\u7ebf\u7a0b\u521b\u5efa\u5931\u8d25"},
       {"one or more live threads were not covered", u8"\u90e8\u5206\u5fae\u4fe1\u7ebf\u7a0b\u5c1a\u672a\u8986\u76d6"},
       {"all live threads are covered again", u8"\u5fae\u4fe1\u7ebf\u7a0b\u8986\u76d6\u5df2\u5168\u90e8\u6062\u590d"},
@@ -2611,6 +2626,14 @@ int runSelfTest() {
   if (observerMessageDescription("HOOK_STOPPED", "hardware breakpoints cleared; DLL remains loaded") !=
       u8"\u786c\u4ef6\u65ad\u70b9\u5df2\u6e05\u9664\uff0cDLL \u4ecd\u4fdd\u6301\u52a0\u8f7d") {
     return 22;
+  }
+  if (observerMessageDescription("HOOK_INSTALL_FAILED", "hardware breakpoint installation failed") !=
+      u8"\u786c\u4ef6\u65ad\u70b9\u5b89\u88c5\u5931\u8d25") {
+    return 31;
+  }
+  if (observerMessageDescription("HOOK_INSTALL_FAILED", "observer worker thread creation failed") !=
+      u8"\u89c2\u5bdf\u5668\u5de5\u4f5c\u7ebf\u7a0b\u521b\u5efa\u5931\u8d25") {
+    return 32;
   }
   if (observerMessageDescription("HOOK_ACTIVE", u8"\u5fae\u4fe1\u5df2\u767b\u5f55\uff0cHook \u6b63\u5e38\u8fd0\u884c") != u8"\u5fae\u4fe1\u5df2\u767b\u5f55\uff0cHook \u6b63\u5e38\u8fd0\u884c") {
     return 23;

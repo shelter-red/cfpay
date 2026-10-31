@@ -649,9 +649,9 @@ bool invokeRemoteObserverExport(
 // 调用远端观察器的版本导出，确认进程内运行的观察器 API 版本与本宿主期望的一致。
 bool observerRuntimeMatches(DWORD processId, const wchar_t* moduleName, std::string* message) {
   DWORD version = 0;
-  if (!invokeRemoteObserverExport(processId, moduleName, "CfpayObserverApiVersion", 5'000, &version, message) ||
-      version != kObserverApiVersion) {
-    if (message->empty()) *message = "loaded observer runtime API version does not match the current package";
+  if (!invokeRemoteObserverExport(processId, moduleName, "CfpayObserverApiVersion", 5'000, &version, message)) return false;
+  if (version != kObserverApiVersion) {
+    *message = "loaded observer runtime API version does not match the current package";
     return false;
   }
   return true;
@@ -1029,6 +1029,7 @@ bool streamWeixinPipe(DWORD processId, const wchar_t* dllPath, std::string* deta
     return false;
   }
   if (!inspectWeixinFile(modulePath.c_str(), detailCode, message)) return false;
+  message->clear();
   const bool observerLoaded = findRemoteModuleBase(processId, L"cfpay-hook-observer.dll") != 0;
   if (observerLoaded &&
       (!observerDllMatches(processId, dllPath, L"cfpay-hook-observer.dll", message) ||

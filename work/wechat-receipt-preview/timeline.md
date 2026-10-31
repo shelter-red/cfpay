@@ -579,3 +579,13 @@
 - decision_delta: [production_newsync=adapted, cmditem_string_pointer=+0x08, embedded_exe_incremental_dependency=fixed, runtime_hook=not_tested, live_payment=requires_owner]
 - carry_forward_refs: [scope.md, workitems.md, ../../docs/integration-journal.md]
 - next: run Windows host inspection when Windows PowerShell interop is available; then validate naturally received NewSync and owner-operated payment
+
+## 2026-11-01T03:54:00+08:00 | lead | weixin-4.2.0.11-runtime-validation
+- action: fix the remaining 4.1 account-callsite signature, install the rebuilt monitor, and validate the observer in the user's interactive Windows session
+- command_or_ref: tools/build-single-exe.sh; native monitor logs; Windows process-memory signature checks
+- result_summary: corrected observer callsite bytes from `e8 5c bb 4a fe` to `e8 2d 23 4f fe`; 4.2 runtime reached `HEALTHY / HOOK_ACTIVE`, account and nickname hooks fired, NewSync and paymsg scan counters advanced; no payment event observed
+- artifacts: [../../native/wechat-observer/hardware_observer.cpp, ../../tests/wechat-native-log-language.test.mjs, evidence/E-dynamic-weixin-4.2.0.11.md, ../../docs/integration-journal.md]
+- evidence_ids: [E-DYNAMIC-WEIXIN-4.2.0.11]
+- decision_delta: [runtime_hook=validated, account_callsite_signature=4.2, real_payment=waiting_for_owner]
+- carry_forward_refs: [evidence/E-static-weixin-4.2.0.11.md, evidence/E-dynamic-weixin-4.2.0.11.md, workitems.md]
+- next: observe one owner-operated real payment and verify parsed fields reach the Worker order flow

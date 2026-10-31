@@ -125,6 +125,8 @@ describe("native wechat monitor log language", () => {
     // 否则用户会以为设置没生效。失败原因改由界面状态行与托盘提示展示。
     expect(source).not.toContain("appendLogAlways");
     expect(source).toContain("if (!gState.config.debugLogging || gState.config.logPath.empty()) return;");
+    expect(source).toContain('{"hardware breakpoint installation failed", u8"\\u786c\\u4ef6\\u65ad\\u70b9\\u5b89\\u88c5\\u5931\\u8d25"}');
+    expect(source).toContain('{"observer worker thread creation failed", u8"\\u89c2\\u5bdf\\u5668\\u5de5\\u4f5c\\u7ebf\\u7a0b\\u521b\\u5efa\\u5931\\u8d25"}');
     expect(source).toContain("void setNetworkOk(bool ok, const std::wstring& detail = {})");
     expect(source).toContain("setNetworkOk(success, success ? std::wstring() : utf8ToWide(serverMessage));");
     // 报文按上限截断，避免二维码或长报文刷满日志。
@@ -162,6 +164,27 @@ describe("native wechat monitor log language", () => {
     expect(observer).toContain("resolvePayloadString(commandItemAddress");
     expect(observer).toContain("capturePayMessage(commandAddress, capturedAt);");
     expect(observer).not.toContain("capturePayMessage(payloadObject");
+  });
+
+  it("does not reuse target-validation success text for observer lifecycle failures", async () => {
+    const host = await readFile(new URL("../native/wechat-observer/wechat_host.cpp", import.meta.url), "utf8");
+    const monitor = await readFile(monitorSourcePath, "utf8");
+
+    expect(host).toContain('if (!invokeRemoteObserverExport(processId, moduleName, "CfpayObserverApiVersion", 5\'000, &version, message)) return false;');
+    expect(host).toContain("message->clear();\n  const bool observerLoaded =");
+    expect(monitor).toContain('{"loaded observer runtime API version does not match the current package",');
+  });
+
+  it("identifies the exact 4.2 runtime signature check that failed", async () => {
+    const observer = await readFile(observerSourcePath, "utf8");
+
+    expect(observer).toContain("kWeixinAccountCallsiteSignature = {0xe8, 0x2d, 0x23, 0x4f, 0xfe}");
+    expect(observer).not.toContain("kWeixinAccountCallsiteSignature = {0xe8, 0x5c, 0xbb, 0x4a, 0xfe}");
+    expect(observer).toContain('"NewSync 解析入口签名不匹配"');
+    expect(observer).toContain('"微信账号函数签名不匹配"');
+    expect(observer).toContain('"微信账号调用点签名不匹配"');
+    expect(observer).toContain('"微信昵称函数签名不匹配"');
+    expect(observer).toContain("writeStatus(\"UNSUPPORTED\", \"SIGNATURE_MISMATCH\", validationMessage.c_str());");
   });
 
   it("rebuilds the single EXE when the embedded observer DLL changes", async () => {

@@ -76,7 +76,7 @@ constexpr std::array<std::uint8_t, 32> kWeixinAccountSignature = {
     0x55, 0x56, 0x57, 0x53, 0x48, 0x81, 0xec, 0xd8, 0x00, 0x00, 0x00, 0x48, 0x8d, 0xac, 0x24, 0x80,
     0x00, 0x00, 0x00, 0x48, 0xc7, 0x45, 0x50, 0xfe, 0xff, 0xff, 0xff, 0x48, 0x89, 0xd6, 0x48, 0x89,
 };
-constexpr std::array<std::uint8_t, 5> kWeixinAccountCallsiteSignature = {0xe8, 0x5c, 0xbb, 0x4a, 0xfe};
+constexpr std::array<std::uint8_t, 5> kWeixinAccountCallsiteSignature = {0xe8, 0x2d, 0x23, 0x4f, 0xfe};
 constexpr std::array<std::uint8_t, 32> kWeixinNicknameSignature = {
     0x55, 0x41, 0x57, 0x41, 0x56, 0x41, 0x54, 0x56, 0x57, 0x53, 0x48, 0x83, 0xec, 0x50, 0x48, 0x8d,
     0x6c, 0x24, 0x50, 0x48, 0xc7, 0x45, 0xf8, 0xfe, 0xff, 0xff, 0xff, 0x48, 0x83, 0x7a, 0x38, 0x00,
@@ -382,27 +382,54 @@ bool connectNamedPipe(const wchar_t* pipeName) {
 // 注入后在进程内存里二次校验四个 Hook 目标处的签名字节。
 // 磁盘文件校验通过不代表内存里就是这个版本（可能被热更新或加壳），
 // 校验不过一律不安装断点，避免把断点打在错误地址上导致微信崩溃。
-bool validateWeixinMemory(HMODULE module) {
+bool validateWeixinMemory(HMODULE module, std::string* failureMessage) {
   const auto base = reinterpret_cast<std::uintptr_t>(module);
   std::array<std::uint8_t, 32> newSyncParseBytes{};
   std::array<std::uint8_t, 32> accountBytes{};
   std::array<std::uint8_t, 5> accountCallsiteBytes{};
   std::array<std::uint8_t, 32> nicknameBytes{};
-  if (!readMemory(reinterpret_cast<const void*>(base + kWeixinNewSyncParseRva), newSyncParseBytes.data(), newSyncParseBytes.size()) ||
-      !readMemory(reinterpret_cast<const void*>(base + kWeixinAccountRva), accountBytes.data(), accountBytes.size()) ||
-      !readMemory(reinterpret_cast<const void*>(base + kWeixinAccountCallsiteRva), accountCallsiteBytes.data(),
-                  accountCallsiteBytes.size()) ||
-      !readMemory(reinterpret_cast<const void*>(base + kWeixinNicknameRva), nicknameBytes.data(), nicknameBytes.size()) ||
-      newSyncParseBytes != kWeixinNewSyncParseSignature ||
-      accountBytes != kWeixinAccountSignature || accountCallsiteBytes != kWeixinAccountCallsiteSignature ||
-      nicknameBytes != kWeixinNicknameSignature) {
+  if (!readMemory(reinterpret_cast<const void*>(base + kWeixinNewSyncParseRva), newSyncParseBytes.data(), newSyncParseBytes.size())) {
+    *failureMessage = "无法读取 NewSync 解析入口内存";
+    return false;
+  }
+  if (newSyncParseBytes != kWeixinNewSyncParseSignature) {
+    *failureMessage = "NewSync 解析入口签名不匹配";
+    return false;
+  }
+  if (!readMemory(reinterpret_cast<const void*>(base + kWeixinAccountRva), accountBytes.data(), accountBytes.size())) {
+    *failureMessage = "无法读取微信账号函数内存";
+    return false;
+  }
+  if (accountBytes != kWeixinAccountSignature) {
+    *failureMessage = "微信账号函数签名不匹配";
+    return false;
+  }
+  if (!readMemory(reinterpret_cast<const void*>(base + kWeixinAccountCallsiteRva), accountCallsiteBytes.data(),
+                  accountCallsiteBytes.size())) {
+    *failureMessage = "无法读取微信账号调用点内存";
+    return false;
+  }
+  if (accountCallsiteBytes != kWeixinAccountCallsiteSignature) {
+    *failureMessage = "微信账号调用点签名不匹配";
+    return false;
+  }
+  if (!readMemory(reinterpret_cast<const void*>(base + kWeixinNicknameRva), nicknameBytes.data(), nicknameBytes.size())) {
+    *failureMessage = "无法读取微信昵称函数内存";
+    return false;
+  }
+  if (nicknameBytes != kWeixinNicknameSignature) {
+    *failureMessage = "微信昵称函数签名不匹配";
     return false;
   }
 
   std::int32_t accountRelativeTarget = 0;
   std::memcpy(&accountRelativeTarget, accountCallsiteBytes.data() + 1, sizeof(accountRelativeTarget));
-  return static_cast<std::uint32_t>(kWeixinAccountCallsiteRva + accountCallsiteBytes.size() + accountRelativeTarget) ==
-         kWeixinAccountRva;
+  if (static_cast<std::uint32_t>(kWeixinAccountCallsiteRva + accountCallsiteBytes.size() + accountRelativeTarget) !=
+      kWeixinAccountRva) {
+    *failureMessage = "微信账号调用点目标地址不匹配";
+    return false;
+  }
+  return true;
 }
 #endif
 
@@ -477,8 +504,9 @@ bool configureOutputAndTarget() {
     writeStatus("STOPPED", "PROCESS_NOT_FOUND", "Weixin.dll is not loaded in the target process");
     return false;
   }
-  if (!validateWeixinMemory(weixin)) {
-    writeStatus("UNSUPPORTED", "SIGNATURE_MISMATCH", "Weixin NewSync parser or account signature does not match");
+  std::string validationMessage;
+  if (!validateWeixinMemory(weixin, &validationMessage)) {
+    writeStatus("UNSUPPORTED", "SIGNATURE_MISMATCH", validationMessage.c_str());
     return false;
   }
   g_hookAddress = reinterpret_cast<void*>(reinterpret_cast<std::uintptr_t>(weixin) + kWeixinNewSyncParseRva);

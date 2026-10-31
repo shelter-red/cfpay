@@ -215,6 +215,8 @@ cfpay-wechat-monitor.exe --internal-host --stop-weixin <pid>
 - 解析器入口前 32 字节必须匹配。
 - 唯一调用点 5 字节必须匹配，且 `CALL rel32` 必须解析回目标 RVA。
 
+生产观察器在目标进程内再次校验 NewSync 解析入口、账号读取入口、账号调用点及昵称读取入口。账号调用点必须匹配 4.2 的 `e8 2d 23 4f fe`；运行时校验失败会报告具体入口，不会安装硬件断点。更换微信版本时，宿主与观察器的目标签名必须一并更新并重新构建单 EXE。
+
 `--test-inject` 具有硬编码进程名限制，只接受 `cfpay-hook-test-target.exe`。加载器先取得目标进程的 `kernel32.dll` 基址，再使用本地 `LoadLibraryW` 相对偏移计算远程入口，不假设系统 DLL 在所有进程中地址相同。
 
 测试命令：
