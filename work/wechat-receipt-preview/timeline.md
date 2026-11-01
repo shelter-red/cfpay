@@ -619,3 +619,13 @@
 - decision_delta: [cmditem_payload=AddMsg_pointer, addmsg_content=present_bit_1_plus_nested_string, metadata_failure_root_cause=wrong_pointer_level, live_payment=not_performed]
 - carry_forward_refs: [scope.md, workitems.md, evidence/E-static-weixin-4.2.0.11.md, evidence/E-dynamic-weixin-4.2.0.11.md]
 - next: owner completes WeChat login; confirm post-fix NewSync/paymsg counters, then owner performs a real small payment to validate event parsing and Worker order matching
+
+## 2026-11-01T13:37:00+08:00 | lead | weixin-4.2.0.11-runtime-payload-validation
+- action: restart the final monitor and Weixin build in the interactive Windows session, allow the existing login helper to complete the login-button flow, and observe the post-fix structured payload path
+- command_or_ref: Windows interactive-session task launch; `wechat-monitor.log`; Worker `/api/monitor/status`
+- result_summary: Weixin entered the logged-in state and Worker received `HEALTHY / HOOK_ACTIVE`. Runtime counters reached NewSync `8/8`, AddMsg `12`, paymsg scans `12`, successfully read payloads `7`, metadata failures `0`, data-read failures `0`, queue drops `0`. Ordinary system messages lacking a transaction ID were rejected by structured validation; no display-text matching was used and no payment was initiated.
+- artifacts: [evidence/E-dynamic-weixin-4.2.0.11.md, workitems.md]
+- evidence_ids: [E-DYNAMIC-WEIXIN-4.2.0.11]
+- decision_delta: [interactive_login=validated, nested_payload_read=runtime_validated, metadata_failures=0, real_payment=owner_required]
+- carry_forward_refs: [scope.md, workitems.md, evidence/E-dynamic-weixin-4.2.0.11.md]
+- next: owner performs one real small payment; verify structured transaction fields, Worker matching, order state and callback result
