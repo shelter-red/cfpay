@@ -3239,3 +3239,12 @@
 - 新指标快照：`newSyncEntries=4`、`newSyncReturns=4`、`addMsgCommands=4`、`payMessageScans=2`、`payMessages=0`、`readFailures=3`、`queueDrops=0`。NewSync Hook 路径已运行；本次没有真实支付，3 次读取失败来源尚不能归因到支付消息解析，需在下一次真实支付观察窗口对比。
 - 持续运行至 04:10:28 再观察：状态保持 `HEALTHY / HOOK_ACTIVE`，NewSync 入口/返回增至 `10/10`、AddMsg 命令 `8`、paymsg 扫描 `5`、支付消息 `0`、读取失败 `6`、队列丢弃 `0`。没有付款样本，因此不能把聚合读取失败归因到收款解析。
 - 真实收款捕获和 Worker 订单匹配仍需要管理员进行一笔真实小额支付验证；未执行付款，不能以 Hook 健康或计数增长替代支付闭环证据。
+
+### WECHAT-006 验证微信 4.2 真实收款闭环
+
+- 2026-11-01 在微信 `4.2.0.11` 用户 Session 1 中完成真实小额支付验证；监控端进程、微信进程和 Hook 均保持运行，支付消息由 NewSync 返回路径正常捕获。
+- 本次有效通知结构化字段为 `payMsgType=9`、`status=1`、`fee=1` 分、`feetype=1`、`type=wx_f2f`，`transid` 长度为 93 字节；此前同一支付流程产生的 `status=0`、`fee=0` 初始化通知按规则忽略。
+- 监控端从已解包的 `paymsg` 结构读取金额、交易时间和交易标识，生成 `wechat:` 加交易标识 SHA-256 的事件编号；未使用界面文案匹配、OCR、数据库读取或金额字符串拆解。
+- 事件已写入本地持久化队列，并以 HTTP `200` 成功上报 `/api/monitor/payment`；Worker 返回 `duplicate=false`、`matched=false`、`orderId=null`，说明 Hook 和上报链路成功，但支付时没有金额、渠道和时间窗口均符合的有效订单。
+- 本次事件已进入管理端“未匹配收款”，不是监控端漏报。要验证自动核销，必须先创建有效的 `0.01` 元微信订单，再在订单有效期内完成支付；普通收款码到账但没有对应订单时，保持未匹配是预期行为。
+- 验证快照中 `payMessageMetadataFailures=0`、`payMessageDataReadFailures=0`；微信 `4.2.0.11` 适配对原生监控端影响集中在偏移、虚表、调用点和载荷指针层级，Worker、管理端及支付宝链路不受本次版本变化直接影响。后续微信版本升级仍需重新进行定点签名校验和真实支付验证。
